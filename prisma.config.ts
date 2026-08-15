@@ -18,9 +18,16 @@ const PLACEHOLDER = "postgresql://user:password@localhost:5432/postgres";
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
-    // Supabase serves pooled connections on :6543 (pgbouncer), but Migrate needs
-    // a direct :5432 connection — set DIRECT_URL to that one.
-    url: process.env.DIRECT_URL || process.env.DATABASE_URL || PLACEHOLDER,
+    // Migrate needs an unpooled connection. Providers name it differently:
+    // Supabase wants :5432 in DIRECT_URL, while Vercel's Neon integration
+    // injects DATABASE_URL_UNPOOLED automatically — accept either, so neither
+    // needs manual wiring.
+    url:
+      process.env.DIRECT_URL ||
+      process.env.DATABASE_URL_UNPOOLED ||
+      process.env.POSTGRES_URL_NON_POOLING ||
+      process.env.DATABASE_URL ||
+      PLACEHOLDER,
   },
   migrations: {
     path: "prisma/migrations",

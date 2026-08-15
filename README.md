@@ -64,7 +64,7 @@ Every authenticated route is explicitly `noindex`.
 ## Project layout
 
 ```
-prisma/schema.prisma     11 models, 5 enums
+prisma/schema.prisma     12 models, 5 enums
 prisma/seed.ts           demo classes, students and grades
 src/proxy.ts             route gate (Next 16's replacement for middleware.ts)
 src/lib/data/*           server-only reads — never network-reachable
