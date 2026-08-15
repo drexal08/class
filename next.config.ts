@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   // request. Letting the bundler resolve the import instead avoids it.
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"],
 
+  // firebase-admin ships in Next's built-in externals list, so omitting it
+  // above is not enough — that list is added to, not replaced. Naming it here
+  // opts it out and forces the bundler to resolve the jose ESM import at build
+  // time instead of leaving a runtime require() that cannot.
+  transpilePackages: ["firebase-admin"],
+
   images: {
     remotePatterns: [
       // Google account photos, used as avatars after Google sign-in.
