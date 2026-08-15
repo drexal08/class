@@ -36,6 +36,9 @@ export async function saveAttachmentAction(
 
     await assertTargetInCourse(courseId, target, context.user.id, context.isTeacher);
 
+    // `key` is the durable reference. `url` is retained only as a record of
+    // where the object was written — rendering always goes through
+    // /api/files/[id], which re-signs on demand after checking permission.
     await prisma.attachment.create({
       data: {
         name: parsed.data.name,

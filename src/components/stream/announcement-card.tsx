@@ -135,7 +135,7 @@ export function AnnouncementCard({
           {post.attachments.map((file) => (
             <li key={file.id}>
               <a
-                href={file.url}
+                href={`/api/files/${file.id}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2.5 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-secondary"

@@ -27,8 +27,10 @@ export function AttachmentList({
     <ul className="space-y-2">
       {attachments.map((file) => (
         <li key={file.id}>
+          {/* Always via the authorised route — a stored signed URL would expire,
+              and a public bucket URL would expose student work to anyone. */}
           <a
-            href={file.url}
+            href={`/api/files/${file.id}`}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2.5 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-secondary"
