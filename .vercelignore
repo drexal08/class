@@ -1,0 +1,13 @@
+# Never upload local environment files to a deployment.
+#
+# The Vercel CLI uploads the working directory, and a stray .env would be read
+# by dotenv during the build — pointing Prisma Migrate at localhost instead of
+# the platform-injected database. Environment comes from Vercel, never a file.
+.env
+.env.*
+!.env.example
+
+node_modules
+.next
+.git
+.vercel

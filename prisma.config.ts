@@ -1,5 +1,12 @@
-import "dotenv/config";
+import { config as loadEnvFile } from "dotenv";
 import { defineConfig } from "prisma/config";
+
+// Load .env for local development only. On a hosting platform the environment
+// is injected directly, and reading a stray uploaded .env would override it —
+// which silently points Migrate at localhost instead of the real database.
+if (!process.env.VERCEL && !process.env.CI) {
+  loadEnvFile();
+}
 
 /**
  * Prisma 7 configuration.
