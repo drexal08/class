@@ -1,267 +1,202 @@
 "use server";
 
-import { db } from "@/db";
-import { announcements, comments, enrollments, users } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
-import { getCurrentUser } from "@/lib/auth";
-import { createAnnouncementSchema, createCommentSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 
-export type ActionState = {
-  error?: string;
-  success?: boolean;
-};
+import {
+  AuthError,
+  requireCourseAccess,
+  requireCourseTeacher,
+  runAction,
+} from "@/lib/auth/guards";
+import { prisma } from "@/lib/prisma";
+import { courseChannel, publish } from "@/lib/realtime/server";
+import type { ActionState } from "@/lib/types";
+import { commentSchema, createAnnouncementSchema, firstIssue } from "@/lib/validators";
 
 export async function createAnnouncementAction(
   _prev: ActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  return runAction(async () => {
+    const parsed = createAnnouncementSchema.safeParse({
+      courseId: formData.get("courseId"),
+      content: formData.get("content"),
+    });
+    if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-  const courseId = Number(formData.get("courseId"));
-  const content = formData.get("content") as string;
+    const { courseId, content } = parsed.data;
+    const context = await requireCourseAccess(courseId);
+    if (context.muted) {
+      throw new AuthError("You have been muted in this class");
+    }
 
-  const parsed = createAnnouncementSchema.safeParse({ courseId, content });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message || "Invalid input" };
-  }
+    const announcement = await prisma.announcement.create({
+      data: { courseId, content, authorId: context.user.id },
+      select: { id: true },
+    });
 
-  // Verify enrollment
-  const [enrollment] = await db
-    .select({ role: enrollments.role })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    )
-    .limit(1);
-
-  if (!enrollment) return { error: "Not enrolled in this course" };
-
-  await db.insert(announcements).values({
-    courseId: parsed.data.courseId,
-    authorId: user.id,
-    content: parsed.data.content,
+    revalidatePath(`/course/${courseId}`);
+    await publish(courseChannel(courseId), "announcement:new", {
+      actorId: context.user.id,
+      id: announcement.id,
+    });
   });
-
-  revalidatePath(`/course/${courseId}`);
-  return { success: true };
 }
 
-export async function getAnnouncements(courseId: number) {
-  const user = await getCurrentUser();
-  if (!user) return [];
-
-  const [enrollment] = await db
-    .select({ role: enrollments.role })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    )
-    .limit(1);
-
-  if (!enrollment) return [];
-
-  return db
-    .select({
-      id: announcements.id,
-      content: announcements.content,
-      pinned: announcements.pinned,
-      createdAt: announcements.createdAt,
-      authorName: users.name,
-      authorColor: users.avatarColor,
-      authorId: users.id,
-    })
-    .from(announcements)
-    .innerJoin(users, eq(announcements.authorId, users.id))
-    .where(eq(announcements.courseId, courseId))
-    .orderBy(desc(announcements.pinned), desc(announcements.createdAt));
-}
-
-export async function togglePinAction(
-  announcementId: number,
-  courseId: number
+/**
+ * The client sends the state it wants rather than a toggle.
+ *
+ * Reading the current value and writing its negation is a lost-update race when
+ * two teachers act at once; this is idempotent.
+ */
+export async function setAnnouncementPinnedAction(
+  courseId: string,
+  announcementId: string,
+  pinned: boolean,
 ): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  return runAction(async () => {
+    await requireCourseTeacher(courseId);
 
-  const [enrollment] = await db
-    .select({ role: enrollments.role })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    )
-    .limit(1);
+    // Scoping the write by courseId is both the authorization check and the
+    // fix for acting on another class's announcement.
+    await prisma.announcement.updateMany({
+      where: { id: announcementId, courseId },
+      data: { pinned },
+    });
 
-  if (!enrollment || enrollment.role !== "teacher") {
-    return { error: "Only teachers can pin announcements" };
-  }
-
-  const [ann] = await db
-    .select({ pinned: announcements.pinned })
-    .from(announcements)
-    .where(eq(announcements.id, announcementId))
-    .limit(1);
-
-  if (!ann) return { error: "Announcement not found" };
-
-  await db
-    .update(announcements)
-    .set({ pinned: !ann.pinned, updatedAt: new Date() })
-    .where(eq(announcements.id, announcementId));
-
-  revalidatePath(`/course/${courseId}`);
-  return { success: true };
+    revalidatePath(`/course/${courseId}`);
+  });
 }
 
 export async function deleteAnnouncementAction(
-  announcementId: number,
-  courseId: number
+  courseId: string,
+  announcementId: string,
 ): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  return runAction(async () => {
+    const context = await requireCourseTeacher(courseId);
 
-  const [enrollment] = await db
-    .select({ role: enrollments.role })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    )
-    .limit(1);
+    await prisma.announcement.deleteMany({
+      where: { id: announcementId, courseId },
+    });
 
-  if (!enrollment || enrollment.role !== "teacher") {
-    return { error: "Only teachers can delete announcements" };
-  }
-
-  await db.delete(announcements).where(eq(announcements.id, announcementId));
-  revalidatePath(`/course/${courseId}`);
-  return { success: true };
+    revalidatePath(`/course/${courseId}`);
+    await publish(courseChannel(courseId), "announcement:deleted", {
+      actorId: context.user.id,
+      id: announcementId,
+    });
+  });
 }
 
 export async function addCommentAction(
   _prev: ActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  return runAction(async () => {
+    const parsed = commentSchema.safeParse({
+      content: formData.get("content"),
+      courseId: formData.get("courseId"),
+      announcementId: formData.get("announcementId") ?? undefined,
+      assignmentId: formData.get("assignmentId") ?? undefined,
+      submissionId: formData.get("submissionId") ?? undefined,
+      isPrivate: formData.get("isPrivate") === "true",
+    });
+    if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-  const content = formData.get("content") as string;
-  const announcementId = formData.get("announcementId")
-    ? Number(formData.get("announcementId"))
-    : undefined;
-  const assignmentId = formData.get("assignmentId")
-    ? Number(formData.get("assignmentId"))
-    : undefined;
-  const submissionId = formData.get("submissionId")
-    ? Number(formData.get("submissionId"))
-    : undefined;
-  const courseId = Number(formData.get("courseId"));
+    const { courseId, content, announcementId, assignmentId, submissionId } =
+      parsed.data;
 
-  const parsed = createCommentSchema.safeParse({
-    content,
-    announcementId,
-    assignmentId,
-    submissionId,
+    const context = await requireCourseAccess(courseId);
+    if (context.muted) {
+      throw new AuthError("You have been muted in this class");
+    }
+
+    // Each target is verified to belong to this course before we write, so a
+    // valid session cannot comment into a class it isn't a member of.
+    if (announcementId) {
+      const exists = await prisma.announcement.count({
+        where: { id: announcementId, courseId },
+      });
+      if (!exists) return { error: "That post no longer exists" };
+    }
+
+    if (assignmentId) {
+      const exists = await prisma.assignment.count({
+        where: { id: assignmentId, courseId },
+      });
+      if (!exists) return { error: "That assignment no longer exists" };
+    }
+
+    let isPrivate = false;
+    if (submissionId) {
+      const submission = await prisma.submission.findFirst({
+        where: { id: submissionId, assignment: { courseId } },
+        select: { studentId: true },
+      });
+      if (!submission) return { error: "That submission no longer exists" };
+
+      const isOwner = submission.studentId === context.user.id;
+      if (!isOwner && !context.isTeacher) {
+        throw new AuthError("You cannot comment on this submission");
+      }
+      // Comments on a submission are always private feedback.
+      isPrivate = true;
+    }
+
+    await prisma.comment.create({
+      data: {
+        content,
+        authorId: context.user.id,
+        announcementId: announcementId ?? null,
+        assignmentId: assignmentId ?? null,
+        submissionId: submissionId ?? null,
+        isPrivate,
+      },
+    });
+
+    revalidatePath(`/course/${courseId}`);
+    if (assignmentId) {
+      revalidatePath(`/course/${courseId}/classwork/${assignmentId}`);
+    }
+
+    await publish(courseChannel(courseId), "comment:new", {
+      actorId: context.user.id,
+    });
   });
-
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message || "Invalid input" };
-  }
-
-  await db.insert(comments).values({
-    authorId: user.id,
-    content: parsed.data.content,
-    announcementId: parsed.data.announcementId ?? null,
-    assignmentId: parsed.data.assignmentId ?? null,
-    submissionId: parsed.data.submissionId ?? null,
-  });
-
-  revalidatePath(`/course/${courseId}`);
-  return { success: true };
-}
-
-export async function getComments(
-  announcementId?: number,
-  assignmentId?: number,
-  submissionId?: number
-) {
-  if (announcementId) {
-    return db
-      .select({
-        id: comments.id,
-        content: comments.content,
-        createdAt: comments.createdAt,
-        authorName: users.name,
-        authorColor: users.avatarColor,
-        authorId: users.id,
-      })
-      .from(comments)
-      .innerJoin(users, eq(comments.authorId, users.id))
-      .where(eq(comments.announcementId, announcementId))
-      .orderBy(comments.createdAt);
-  }
-  if (assignmentId) {
-    return db
-      .select({
-        id: comments.id,
-        content: comments.content,
-        createdAt: comments.createdAt,
-        authorName: users.name,
-        authorColor: users.avatarColor,
-        authorId: users.id,
-      })
-      .from(comments)
-      .innerJoin(users, eq(comments.authorId, users.id))
-      .where(eq(comments.assignmentId, assignmentId))
-      .orderBy(comments.createdAt);
-  }
-  if (submissionId) {
-    return db
-      .select({
-        id: comments.id,
-        content: comments.content,
-        createdAt: comments.createdAt,
-        authorName: users.name,
-        authorColor: users.avatarColor,
-        authorId: users.id,
-      })
-      .from(comments)
-      .innerJoin(users, eq(comments.authorId, users.id))
-      .where(eq(comments.submissionId, submissionId))
-      .orderBy(comments.createdAt);
-  }
-  return [];
 }
 
 export async function deleteCommentAction(
-  commentId: number,
-  courseId: number
+  courseId: string,
+  commentId: string,
 ): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  return runAction(async () => {
+    const context = await requireCourseAccess(courseId);
 
-  const [comment] = await db
-    .select({ authorId: comments.authorId })
-    .from(comments)
-    .where(eq(comments.id, commentId))
-    .limit(1);
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      select: {
+        authorId: true,
+        announcement: { select: { courseId: true } },
+        assignment: { select: { courseId: true } },
+        submission: { select: { assignment: { select: { courseId: true } } } },
+      },
+    });
+    if (!comment) return { error: "That comment no longer exists" };
 
-  if (!comment) return { error: "Comment not found" };
+    const commentCourseId =
+      comment.announcement?.courseId ??
+      comment.assignment?.courseId ??
+      comment.submission?.assignment.courseId;
 
-  // Check if user is the author or a teacher
-  const [enrollment] = await db
-    .select({ role: enrollments.role })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    )
-    .limit(1);
+    if (commentCourseId !== courseId) {
+      throw new AuthError("That comment belongs to another class");
+    }
 
-  if (comment.authorId !== user.id && enrollment?.role !== "teacher") {
-    return { error: "Cannot delete this comment" };
-  }
+    // Authors delete their own comments; teachers moderate anyone's.
+    if (comment.authorId !== context.user.id && !context.isTeacher) {
+      throw new AuthError("You can only delete your own comments");
+    }
 
-  await db.delete(comments).where(eq(comments.id, commentId));
-  revalidatePath(`/course/${courseId}`);
-  return { success: true };
+    await prisma.comment.delete({ where: { id: commentId } });
+    revalidatePath(`/course/${courseId}`);
+  });
 }

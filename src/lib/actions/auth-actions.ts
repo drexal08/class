@@ -1,108 +1,64 @@
 "use server";
 
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import {
-  createSession,
-  destroySession,
-  hashPassword,
-  verifyPassword,
-} from "@/lib/auth";
-import { registerSchema, loginSchema } from "@/lib/validators";
-import { randomAvatarColor } from "@/lib/utils";
 
-export type AuthState = {
-  error?: string;
-  success?: boolean;
-};
+import { requireAdmin, requireUser, runAction } from "@/lib/auth/guards";
+import { destroySession } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
+import type { ActionState } from "@/lib/types";
+import { revalidatePath } from "next/cache";
 
-export async function registerAction(
-  _prev: AuthState,
-  formData: FormData
-): Promise<AuthState> {
-  const raw = {
-    name: formData.get("name") as string,
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
-    role: (formData.get("role") as string) || "student",
-  };
-
-  const parsed = registerSchema.safeParse(raw);
-  if (!parsed.success) {
-    const issues = parsed.error.issues;
-    return { error: issues[0]?.message || "Invalid input" };
-  }
-
-  const { name, email, password, role } = parsed.data;
-
-  const existing = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, email.toLowerCase()))
-    .limit(1);
-
-  if (existing.length > 0) {
-    return { error: "An account with this email already exists" };
-  }
-
-  const passwordHash = await hashPassword(password);
-  const [newUser] = await db
-    .insert(users)
-    .values({
-      name,
-      email: email.toLowerCase(),
-      passwordHash,
-      role,
-      avatarColor: randomAvatarColor(),
-    })
-    .returning({ id: users.id });
-
-  await createSession(newUser.id);
-  redirect("/dashboard");
-}
-
-export async function loginAction(
-  _prev: AuthState,
-  formData: FormData
-): Promise<AuthState> {
-  const raw = {
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
-  };
-
-  const parsed = loginSchema.safeParse(raw);
-  if (!parsed.success) {
-    const issues = parsed.error.issues;
-    return { error: issues[0]?.message || "Invalid input" };
-  }
-
-  const { email, password } = parsed.data;
-
-  const [user] = await db
-    .select({
-      id: users.id,
-      passwordHash: users.passwordHash,
-    })
-    .from(users)
-    .where(eq(users.email, email.toLowerCase()))
-    .limit(1);
-
-  if (!user) {
-    return { error: "Invalid email or password" };
-  }
-
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    return { error: "Invalid email or password" };
-  }
-
-  await createSession(user.id);
-  redirect("/dashboard");
-}
-
+/** Clears the session cookie and revokes the Firebase refresh tokens. */
 export async function logoutAction(): Promise<void> {
   await destroySession();
   redirect("/login");
+}
+
+/** Lets a user correct their own display name. */
+export async function updateProfileAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const user = await requireUser();
+
+    const displayName = String(formData.get("displayName") ?? "").trim();
+    if (displayName.length < 2) {
+      return { error: "Name must be at least 2 characters" };
+    }
+    if (displayName.length > 80) {
+      return { error: "Name is too long" };
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { displayName },
+    });
+
+    revalidatePath("/settings");
+    revalidatePath("/dashboard");
+  });
+}
+
+/**
+ * Admin-only role change.
+ *
+ * Roles are never settable by the account holder — the sign-in route only
+ * honours an intended role when creating a brand-new user, and this action is
+ * the sole path to changing one afterwards.
+ */
+export async function setUserRoleAction(
+  userId: string,
+  role: "ADMIN" | "TEACHER" | "STUDENT",
+): Promise<ActionState> {
+  return runAction(async () => {
+    const admin = await requireAdmin();
+
+    if (admin.id === userId && role !== "ADMIN") {
+      return { error: "You cannot remove your own admin access" };
+    }
+
+    await prisma.user.update({ where: { id: userId }, data: { role } });
+    revalidatePath("/admin");
+  });
 }

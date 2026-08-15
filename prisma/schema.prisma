@@ -1,0 +1,348 @@
+// LMS Core — Prisma schema
+//
+// The models below reproduce the PRD (§5) specification verbatim. Fields marked
+// `[+]` are additive extensions required by PRD modules that the base schema has
+// no columns for — each one is annotated with the module that demands it.
+
+// Prisma 7 removed `url` from the datasource block: connection strings for the
+// CLI now live in `prisma.config.ts`, and the runtime gets its connection from
+// the driver adapter passed to `new PrismaClient()` (see src/lib/prisma.ts).
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum SubmissionState {
+  ASSIGNED
+  SUBMITTED
+  LATE
+  GRADED
+  RETURNED
+}
+
+/// [+] Module D — "Assignment Types: Assignments, Quizzes, Questions, Material"
+enum AssignmentType {
+  ASSIGNMENT
+  QUIZ
+  QUESTION
+  MATERIAL
+}
+
+/// [+] Module C — who is allowed to post and comment on the stream.
+enum PostPolicy {
+  STUDENTS_CAN_POST_AND_COMMENT
+  STUDENTS_CAN_COMMENT_ONLY
+  ONLY_TEACHERS
+}
+
+/// [+] Notification feed, so a user who was offline still sees what happened.
+enum NotificationType {
+  ANNOUNCEMENT_POSTED
+  COMMENT_ADDED
+  ASSIGNMENT_CREATED
+  WORK_SUBMITTED
+  GRADE_RETURNED
+  ENROLLED
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id          String   @id // Firebase UID
+  email       String   @unique
+  displayName String?
+  avatarUrl   String?
+  role        Role     @default(STUDENT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  enrollments    Enrollment[]
+  createdCourses Course[]       @relation("TeacherCourses")
+  submissions    Submission[]
+  comments       Comment[]
+  announcements  Announcement[]
+  attachments    Attachment[]   @relation("UploadedAttachments") // [+] Module D
+  notifications  Notification[]
+
+  @@index([role])
+}
+
+/// [+] In-app notification feed (the bell menu). Persisted rather than
+/// realtime-only so a user who was offline still sees what they missed.
+model Notification {
+  id       String           @id @default(cuid())
+  userId   String
+  courseId String?
+  type     NotificationType
+  title    String
+  body     String?
+  linkPath String?
+  readAt   DateTime?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([courseId])
+}
+
+// ---------------------------------------------------------------------------
+// Courses & roster
+// ---------------------------------------------------------------------------
+
+model Course {
+  id        String   @id @default(cuid())
+  name      String
+  section   String?
+  subject   String?
+  room      String?
+  code      String   @unique
+  teacherId String
+  teacher   User     @relation("TeacherCourses", fields: [teacherId], references: [id])
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// [+] Muted slate accent token (e.g. "slate"), NOT a saturated brand colour.
+  accent      String     @default("slate")
+  /// [+] Module B — class description shown on the stream header.
+  description String?
+  /// [+] Module C — stream moderation setting.
+  postPolicy  PostPolicy @default(STUDENTS_CAN_POST_AND_COMMENT)
+
+  enrollments   Enrollment[]
+  announcements Announcement[]
+  assignments   Assignment[]
+  topics        Topic[]
+  notifications Notification[]
+
+  @@index([teacherId])
+  @@index([archived])
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  role      Role     @default(STUDENT)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  /// [+] Module C — "Moderation controls allowing teachers to ... mute students"
+  muted Boolean @default(false)
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([userId])
+}
+
+model Topic {
+  id       String @id @default(cuid())
+  name     String
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  /// [+] Module D — teachers order topics on the Classwork page
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  assignments Assignment[]
+
+  @@index([courseId, sortOrder])
+}
+
+// ---------------------------------------------------------------------------
+// Stream
+// ---------------------------------------------------------------------------
+
+model Announcement {
+  id        String   @id @default(cuid())
+  content   String
+  courseId  String
+  authorId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  createdAt DateTime @default(now())
+
+  /// [+] Module C — teachers pin announcements to the top of the stream
+  pinned      Boolean      @default(false)
+  updatedAt   DateTime     @updatedAt
+  attachments Attachment[] // [+] Module C — "rich text and file attachments"
+
+  @@index([courseId, createdAt])
+  @@index([authorId])
+}
+
+// ---------------------------------------------------------------------------
+// Classwork
+// ---------------------------------------------------------------------------
+
+model Assignment {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  maxPoints   Int       @default(100)
+  courseId    String
+  topicId     String?
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic       Topic?    @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  submissions Submission[]
+  createdAt   DateTime  @default(now())
+
+  /// [+] Module D — Assignments / Quizzes / Questions / Material
+  type      AssignmentType @default(ASSIGNMENT)
+  /// [+] §3 — teachers draft classwork before releasing it to students
+  published Boolean        @default(true)
+  updatedAt DateTime       @updatedAt
+
+  attachments Attachment[]
+  rubric      RubricCriterion[] // [+] Module D — "rubric breakdown"
+  comments    Comment[]
+
+  @@index([courseId, createdAt])
+  @@index([topicId])
+}
+
+/// [+] Module D — "grade input, rubric breakdown, and private comments"
+model RubricCriterion {
+  id           String     @id @default(cuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  points       Int        @default(10)
+  sortOrder    Int        @default(0)
+
+  scores RubricScore[]
+
+  @@index([assignmentId, sortOrder])
+}
+
+/// [+] Per-criterion marks awarded on a single submission.
+model RubricScore {
+  id           String          @id @default(cuid())
+  submissionId String
+  criterionId  String
+  points       Float
+  submission   Submission      @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  criterion    RubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, criterionId])
+  @@index([criterionId])
+}
+
+// ---------------------------------------------------------------------------
+// Submissions
+// ---------------------------------------------------------------------------
+
+model Submission {
+  id           String          @id @default(cuid())
+  assignmentId String
+  studentId    String
+  status       SubmissionState @default(ASSIGNED)
+  grade        Float?
+  feedback     String?
+  fileUrl      String?
+  assignment   Assignment      @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student      User            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  submittedAt  DateTime?
+  createdAt    DateTime        @default(now())
+
+  /// [+] Free-text student response (short-answer / Question type)
+  content   String?
+  /// [+] Set when a teacher records a grade; drives "Graded on ..." in the UI
+  gradedAt  DateTime?
+  /// [+] Set when work is returned to the student
+  returnedAt DateTime?
+  updatedAt DateTime  @updatedAt
+
+  attachments  Attachment[]  // [+] Module D — multi-file submissions
+  rubricScores RubricScore[]
+  comments     Comment[]
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
+  @@index([assignmentId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+
+model Comment {
+  id             String        @id @default(cuid())
+  content        String
+  authorId       String
+  announcementId String?
+  author         User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  announcement   Announcement? @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  /// [+] Module D — class comments on classwork
+  assignmentId String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  /// [+] Module D — "attach private feedback" on a specific submission
+  submissionId String?
+  submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  /// [+] Private comments are visible only to the submission's student and course teachers
+  isPrivate    Boolean     @default(false)
+
+  @@index([announcementId, createdAt])
+  @@index([assignmentId, createdAt])
+  @@index([submissionId, createdAt])
+  @@index([authorId])
+}
+
+// ---------------------------------------------------------------------------
+// Storage
+// ---------------------------------------------------------------------------
+
+/// [+] Module D — "Uploads file directly to Cloudflare R2 / S3 -> Saves metadata
+/// reference to database". One row per uploaded object.
+model Attachment {
+  id       String @id @default(cuid())
+  name     String
+  url      String
+  /// Object key in the bucket, retained so the file can be deleted or re-signed.
+  key      String
+  mimeType String?
+  size     Int?
+
+  uploadedById String
+  uploadedBy   User   @relation("UploadedAttachments", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  announcementId String?
+  announcement   Announcement? @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  assignmentId   String?
+  assignment     Assignment?   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  submissionId   String?
+  submission     Submission?   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([announcementId])
+  @@index([assignmentId])
+  @@index([submissionId])
+  @@index([uploadedById])
+}

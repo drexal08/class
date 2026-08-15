@@ -1,81 +1,60 @@
-"use client";
-
-import { useActionState } from "react";
-import { loginAction, type AuthState } from "@/lib/actions/auth-actions";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+
+import { AuthForm } from "@/components/auth/auth-form";
+import { Skeleton } from "@/components/ui/skeleton";
+import { isDevAuthEnabledClient, isFirebaseClientConfigured } from "@/lib/env";
+import { siteConfig } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: `Sign in to ${siteConfig.name} to reach your classes, assignments and grades.`,
+  alternates: { canonical: "/login" },
+};
 
 export default function LoginPage() {
-  const [state, formAction, isPending] = useActionState<AuthState, FormData>(
-    loginAction,
-    {}
-  );
-
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8">
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-green-600 rounded mx-auto mb-4 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-7 h-7 text-white" fill="currentColor">
-                <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-normal text-gray-800">Sign in</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              to continue to Classroom
-            </p>
-          </div>
+    <AuthLayout>
+      <Suspense fallback={<FormSkeleton />}>
+        <AuthForm
+          mode="signin"
+          firebaseEnabled={isFirebaseClientConfigured()}
+          devEnabled={isDevAuthEnabledClient()}
+        />
+      </Suspense>
+    </AuthLayout>
+  );
+}
 
-          {state.error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
-              {state.error}
-            </div>
-          )}
-
-          <form action={formAction} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="you@example.com"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="••••••••"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50 cursor-pointer"
-            >
-              {isPending ? "Signing in..." : "Sign in"}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-gray-500">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-blue-600 hover:underline">
-              Create account
-            </Link>
-          </p>
+export function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b border-border bg-card">
+        <div className="container-page flex h-16 items-center">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
+              L
+            </span>
+            <span className="text-base font-semibold">{siteConfig.name}</span>
+          </Link>
         </div>
-      </div>
+      </header>
+      <main id="main" className="flex flex-1 items-center justify-center px-4 py-16">
+        {children}
+      </main>
+    </div>
+  );
+}
+
+function FormSkeleton() {
+  return (
+    <div className="w-full max-w-sm space-y-4">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-4 w-64" />
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-9 w-full" />
     </div>
   );
 }

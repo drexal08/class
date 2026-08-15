@@ -1,239 +1,295 @@
 "use server";
 
-import { db } from "@/db";
-import { courses, enrollments, users } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getCurrentUser } from "@/lib/auth";
-import { createCourseSchema, joinCourseSchema } from "@/lib/validators";
-import { generateJoinCode, randomThemeColor } from "@/lib/utils";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-export type ActionState = {
-  error?: string;
-  success?: boolean;
-};
+import {
+  AuthError,
+  requireCourseAccess,
+  requireCourseTeacher,
+  requireUser,
+  runAction,
+} from "@/lib/auth/guards";
+import { prisma } from "@/lib/prisma";
+import type { ActionState } from "@/lib/types";
+import { generateJoinCode, randomAccent } from "@/lib/utils";
+import {
+  createCourseSchema,
+  firstIssue,
+  joinCourseSchema,
+  updateCourseSchema,
+} from "@/lib/validators";
+
+/**
+ * Only mutations live in this file. Every export of a `"use server"` module is
+ * a publicly callable endpoint, so reads belong in `src/lib/data/*` instead.
+ */
 
 export async function createCourseAction(
   _prev: ActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
-  if (user.role !== "teacher" && user.role !== "admin") {
-    return { error: "Only teachers can create courses" };
-  }
+  let createdId: string | null = null;
 
-  const raw = {
-    name: formData.get("name") as string,
-    section: (formData.get("section") as string) || undefined,
-    subject: (formData.get("subject") as string) || undefined,
-    room: (formData.get("room") as string) || undefined,
-  };
+  const result = await runAction(async () => {
+    const user = await requireUser();
+    if (user.role === "STUDENT") {
+      throw new AuthError("Only teachers can create classes");
+    }
 
-  const parsed = createCourseSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message || "Invalid input" };
-  }
+    const parsed = createCourseSchema.safeParse({
+      name: formData.get("name"),
+      section: formData.get("section"),
+      subject: formData.get("subject"),
+      room: formData.get("room"),
+    });
+    if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-  const joinCode = generateJoinCode();
-
-  const [course] = await db
-    .insert(courses)
-    .values({
-      ...parsed.data,
-      joinCode,
-      themeColor: randomThemeColor(),
-      createdById: user.id,
-    })
-    .returning({ id: courses.id });
-
-  await db.insert(enrollments).values({
-    userId: user.id,
-    courseId: course.id,
-    role: "teacher",
+    const course = await createCourseWithUniqueCode(user.id, parsed.data);
+    createdId = course.id;
   });
 
+  if (result.error) return result;
+
   revalidatePath("/dashboard");
-  redirect(`/course/${course.id}`);
+  if (createdId) redirect(`/course/${createdId}`);
+  return { success: true };
+}
+
+/**
+ * Join codes are random, so collisions are rare but not impossible. Retrying on
+ * the unique-constraint violation is cheaper and more correct than pre-checking,
+ * which would still race.
+ */
+async function createCourseWithUniqueCode(
+  teacherId: string,
+  data: { name: string; section?: string; subject?: string; room?: string },
+) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      // The course and its teacher enrollment must land together, or the
+      // creator ends up locked out of their own class.
+      return await prisma.$transaction(async (tx) => {
+        const course = await tx.course.create({
+          data: {
+            ...data,
+            code: generateJoinCode(),
+            accent: randomAccent(),
+            teacherId,
+          },
+          select: { id: true },
+        });
+
+        await tx.enrollment.create({
+          data: { courseId: course.id, userId: teacherId, role: "TEACHER" },
+        });
+
+        return course;
+      });
+    } catch (error) {
+      if (isUniqueViolation(error, "code")) continue;
+      throw error;
+    }
+  }
+
+  throw new Error("Could not generate a unique class code. Please try again.");
 }
 
 export async function joinCourseAction(
   _prev: ActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  let joinedId: string | null = null;
 
-  const raw = {
-    joinCode: ((formData.get("joinCode") as string) || "").toUpperCase(),
-  };
+  const result = await runAction(async () => {
+    const user = await requireUser();
 
-  const parsed = joinCourseSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message || "Invalid join code" };
-  }
+    const parsed = joinCourseSchema.safeParse({ code: formData.get("code") });
+    if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-  const [course] = await db
-    .select({ id: courses.id })
-    .from(courses)
-    .where(eq(courses.joinCode, parsed.data.joinCode))
-    .limit(1);
+    const course = await prisma.course.findUnique({
+      where: { code: parsed.data.code },
+      select: { id: true, archived: true, teacherId: true },
+    });
+    if (!course) return { error: "No class found with that code" };
+    if (course.archived) return { error: "That class has been archived" };
 
-  if (!course) {
-    return { error: "No course found with that join code" };
-  }
+    try {
+      await prisma.enrollment.create({
+        data: {
+          courseId: course.id,
+          userId: user.id,
+          // A teacher joining someone else's class joins as a student; only the
+          // owner and explicitly promoted users teach.
+          role: course.teacherId === user.id ? "TEACHER" : "STUDENT",
+        },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return { error: "You are already in this class" };
+      }
+      throw error;
+    }
 
-  const existing = await db
-    .select({ id: enrollments.id })
-    .from(enrollments)
-    .where(
-      and(
-        eq(enrollments.userId, user.id),
-        eq(enrollments.courseId, course.id)
-      )
-    )
-    .limit(1);
-
-  if (existing.length > 0) {
-    return { error: "You are already enrolled in this course" };
-  }
-
-  const enrollRole = user.role === "teacher" ? "teacher" as const : "student" as const;
-
-  await db.insert(enrollments).values({
-    userId: user.id,
-    courseId: course.id,
-    role: enrollRole,
+    joinedId = course.id;
   });
 
-  revalidatePath("/dashboard");
-  redirect(`/course/${course.id}`);
-}
-
-export async function archiveCourseAction(courseId: number): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
-
-  const [enrollment] = await db
-    .select({ role: enrollments.role })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    )
-    .limit(1);
-
-  if (!enrollment || enrollment.role !== "teacher") {
-    return { error: "Only teachers can archive courses" };
-  }
-
-  await db
-    .update(courses)
-    .set({ archived: true, updatedAt: new Date() })
-    .where(eq(courses.id, courseId));
+  if (result.error) return result;
 
   revalidatePath("/dashboard");
+  if (joinedId) redirect(`/course/${joinedId}`);
   return { success: true };
 }
 
-export async function getUserCourses() {
-  const user = await getCurrentUser();
-  if (!user) return [];
+export async function updateCourseAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const parsed = updateCourseSchema.safeParse({
+      courseId: formData.get("courseId"),
+      name: formData.get("name"),
+      section: formData.get("section"),
+      subject: formData.get("subject"),
+      room: formData.get("room"),
+      description: formData.get("description"),
+      postPolicy: formData.get("postPolicy") ?? undefined,
+    });
+    if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-  const result = await db
-    .select({
-      id: courses.id,
-      name: courses.name,
-      section: courses.section,
-      subject: courses.subject,
-      room: courses.room,
-      joinCode: courses.joinCode,
-      themeColor: courses.themeColor,
-      archived: courses.archived,
-      enrollmentRole: enrollments.role,
-      creatorName: users.name,
-    })
-    .from(enrollments)
-    .innerJoin(courses, eq(enrollments.courseId, courses.id))
-    .innerJoin(users, eq(courses.createdById, users.id))
-    .where(eq(enrollments.userId, user.id));
+    const { courseId, ...data } = parsed.data;
+    await requireCourseTeacher(courseId);
 
-  return result;
+    await prisma.course.update({
+      where: { id: courseId },
+      data: {
+        name: data.name,
+        section: data.section ?? null,
+        subject: data.subject ?? null,
+        room: data.room ?? null,
+        description: data.description ?? null,
+        postPolicy: data.postPolicy,
+      },
+    });
+
+    revalidatePath(`/course/${courseId}`);
+    revalidatePath("/dashboard");
+  });
 }
 
-export async function getCourseById(courseId: number) {
-  const user = await getCurrentUser();
-  if (!user) return null;
+export async function setArchivedAction(
+  courseId: string,
+  archived: boolean,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireCourseTeacher(courseId);
 
-  const [enrollment] = await db
-    .select({ role: enrollments.role })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    )
-    .limit(1);
+    await prisma.course.update({ where: { id: courseId }, data: { archived } });
 
-  if (!enrollment) return null;
-
-  const [course] = await db
-    .select({
-      id: courses.id,
-      name: courses.name,
-      section: courses.section,
-      subject: courses.subject,
-      room: courses.room,
-      joinCode: courses.joinCode,
-      themeColor: courses.themeColor,
-      archived: courses.archived,
-      createdById: courses.createdById,
-    })
-    .from(courses)
-    .where(eq(courses.id, courseId))
-    .limit(1);
-
-  if (!course) return null;
-
-  return { ...course, userRole: enrollment.role };
+    revalidatePath("/dashboard");
+    revalidatePath(`/course/${courseId}`);
+  });
 }
 
-export async function getCourseMembers(courseId: number) {
-  const user = await getCurrentUser();
-  if (!user) return [];
+export async function regenerateJoinCodeAction(
+  courseId: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireCourseTeacher(courseId);
 
-  const [enrollment] = await db
-    .select({ role: enrollments.role })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    )
-    .limit(1);
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        await prisma.course.update({
+          where: { id: courseId },
+          data: { code: generateJoinCode() },
+        });
+        revalidatePath(`/course/${courseId}`);
+        return;
+      } catch (error) {
+        if (isUniqueViolation(error, "code")) continue;
+        throw error;
+      }
+    }
 
-  if (!enrollment) return [];
-
-  return db
-    .select({
-      userId: users.id,
-      name: users.name,
-      email: users.email,
-      avatarColor: users.avatarColor,
-      role: enrollments.role,
-      joinedAt: enrollments.joinedAt,
-    })
-    .from(enrollments)
-    .innerJoin(users, eq(enrollments.userId, users.id))
-    .where(eq(enrollments.courseId, courseId));
+    throw new Error("Could not generate a new code. Please try again.");
+  });
 }
 
-export async function unenrollAction(courseId: number): Promise<ActionState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+/** Teacher removes someone from the roster. */
+export async function removeMemberAction(
+  courseId: string,
+  userId: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireCourseTeacher(courseId);
 
-  await db
-    .delete(enrollments)
-    .where(
-      and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId))
-    );
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { teacherId: true },
+    });
+    if (course?.teacherId === userId) {
+      return { error: "The class owner cannot be removed" };
+    }
+
+    await prisma.enrollment.deleteMany({ where: { courseId, userId } });
+    revalidatePath(`/course/${courseId}/people`);
+  });
+}
+
+/** Module C moderation: mute or unmute a student's ability to post. */
+export async function setMutedAction(
+  courseId: string,
+  userId: string,
+  muted: boolean,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireCourseTeacher(courseId);
+
+    await prisma.enrollment.updateMany({
+      where: { courseId, userId, role: "STUDENT" },
+      data: { muted },
+    });
+
+    revalidatePath(`/course/${courseId}/people`);
+    revalidatePath(`/course/${courseId}`);
+  });
+}
+
+export async function leaveCourseAction(courseId: string): Promise<ActionState> {
+  const result = await runAction(async () => {
+    const context = await requireCourseAccess(courseId);
+
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { teacherId: true },
+    });
+    // Leaving as the owner would orphan the class for everyone still in it.
+    if (course?.teacherId === context.user.id) {
+      return {
+        error: "You own this class. Archive it instead of leaving.",
+      };
+    }
+
+    await prisma.enrollment.deleteMany({
+      where: { courseId, userId: context.user.id },
+    });
+  });
+
+  if (result.error) return result;
 
   revalidatePath("/dashboard");
-  return { success: true };
+  redirect("/dashboard");
+}
+
+/** Prisma's unique-constraint violation, optionally on a specific field. */
+function isUniqueViolation(error: unknown, field?: string): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const code = (error as { code?: unknown }).code;
+  if (code !== "P2002") return false;
+  if (!field) return true;
+
+  const target = (error as { meta?: { target?: unknown } }).meta?.target;
+  return Array.isArray(target)
+    ? target.includes(field)
+    : String(target ?? "").includes(field);
 }

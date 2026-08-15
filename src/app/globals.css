@@ -1,33 +1,217 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-* {
-  box-sizing: border-box;
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+   LMS Core design tokens
+
+   An educational platform: the palette is deliberately calm and low-contrast in
+   its accents so that student work — not the interface — carries the visual
+   weight. Slate and cool grey only; saturated colour is reserved for status
+   semantics (overdue, graded) where it must be noticed.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --radius: 0.5rem;
+
+  /* Surfaces */
+  --background: #f8fafc; /* slate-50  — app canvas */
+  --foreground: #1e293b; /* slate-800 — primary text */
+  --card: #ffffff;
+  --card-foreground: #1e293b;
+  --popover: #ffffff;
+  --popover-foreground: #1e293b;
+
+  /* Action — slate, never a saturated brand blue */
+  --primary: #1e293b; /* slate-800 */
+  --primary-foreground: #f8fafc;
+
+  --secondary: #f1f5f9; /* slate-100 */
+  --secondary-foreground: #334155; /* slate-700 */
+
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b; /* slate-500 — muted labels */
+
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+
+  --destructive: #b91c1c;
+  --destructive-foreground: #fef2f2;
+
+  /* Lines & focus */
+  --border: #e2e8f0; /* slate-200 — soft borders */
+  --input: #cbd5e1; /* slate-300 — input outline, AA on white */
+  --ring: #475569; /* slate-600 — focus ring */
+
+  /* Status: desaturated, readable, never neon */
+  --success: #15803d;
+  --success-muted: #f0fdf4;
+  --warning: #b45309;
+  --warning-muted: #fffbeb;
+  --danger: #b91c1c;
+  --danger-muted: #fef2f2;
+  --info: #0f766e;
+  --info-muted: #f0fdfa;
+
+  /* Elevation: two levels, both nearly invisible */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-float: 0 4px 16px -4px rgb(15 23 42 / 0.12);
 }
 
-html {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.dark {
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --card: #1e293b;
+  --card-foreground: #e2e8f0;
+  --popover: #1e293b;
+  --popover-foreground: #e2e8f0;
+
+  --primary: #e2e8f0;
+  --primary-foreground: #0f172a;
+
+  --secondary: #334155;
+  --secondary-foreground: #e2e8f0;
+
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+
+  --accent: #334155;
+  --accent-foreground: #f8fafc;
+
+  --destructive: #f87171;
+  --destructive-foreground: #450a0a;
+
+  --border: #334155;
+  --input: #475569;
+  --ring: #94a3b8;
+
+  --success: #4ade80;
+  --success-muted: #052e16;
+  --warning: #fbbf24;
+  --warning-muted: #451a03;
+  --danger: #f87171;
+  --danger-muted: #450a0a;
+  --info: #5eead4;
+  --info-muted: #042f2e;
 }
 
-body {
-  font-family: 'Google Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+  }
+
+  /* One visible focus style, applied consistently — a hard accessibility
+     requirement for a platform students navigate by keyboard. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Micro-interactions only: respect users who ask for less motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--input);
+    border: 2px solid var(--background);
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+@layer utilities {
+  /* Content column widths used across the app shell. */
+  .container-page {
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 1rem;
+    max-width: 80rem;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
+  @media (min-width: 768px) {
+    .container-page {
+      padding-inline: 1.5rem;
+    }
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  .container-feed {
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 1rem;
+    max-width: 48rem;
+  }
+
+  @media (min-width: 768px) {
+    .container-feed {
+      padding-inline: 1.5rem;
+    }
+  }
 }
