@@ -1,14 +1,7 @@
 import "server-only";
 
-import {
-  cert,
-  getApp,
-  getApps,
-  initializeApp,
-  type App,
-  type ServiceAccount,
-} from "firebase-admin/app";
-import { getAuth, type Auth } from "firebase-admin/auth";
+import type { App, ServiceAccount } from "firebase-admin/app";
+import type { Auth } from "firebase-admin/auth";
 
 import { isFirebaseAdminConfigured } from "@/lib/env";
 
@@ -17,28 +10,37 @@ const ADMIN_APP_NAME = "lms-core-admin";
 /**
  * Lazily initialised Firebase Admin app.
  *
+ * The SDK is pulled in with a dynamic import rather than a top-level one: a
+ * static import loads the whole dependency chain on every request even when no
+ * credentials are configured and none of these functions is ever called. Only
+ * the types are imported statically, which erase at compile time.
+ *
  * Returns `null` rather than throwing when credentials are absent, so that
  * `next build` succeeds with an empty .env and an unconfigured deployment
  * degrades to "signed out" instead of a 500.
  */
-function getAdminApp(): App | null {
+async function getAdminApp(): Promise<App | null> {
   if (!isFirebaseAdminConfigured()) return null;
-
-  const existing = getApps().find((app) => app.name === ADMIN_APP_NAME);
-  if (existing) return getApp(ADMIN_APP_NAME);
 
   const serviceAccount = parseServiceAccount();
   if (!serviceAccount) return null;
 
-  return initializeApp(
-    { credential: cert(serviceAccount) },
-    ADMIN_APP_NAME,
+  const { cert, getApp, getApps, initializeApp } = await import(
+    "firebase-admin/app"
   );
+
+  const existing = getApps().find((app) => app.name === ADMIN_APP_NAME);
+  if (existing) return getApp(ADMIN_APP_NAME);
+
+  return initializeApp({ credential: cert(serviceAccount) }, ADMIN_APP_NAME);
 }
 
-export function getAdminAuth(): Auth | null {
-  const app = getAdminApp();
-  return app ? getAuth(app) : null;
+export async function getAdminAuth(): Promise<Auth | null> {
+  const app = await getAdminApp();
+  if (!app) return null;
+
+  const { getAuth } = await import("firebase-admin/auth");
+  return getAuth(app);
 }
 
 /**

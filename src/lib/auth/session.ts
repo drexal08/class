@@ -73,7 +73,7 @@ export const getEnrollment = cache(
 
 async function resolveUid(token: string): Promise<string | null> {
   if (isFirebaseAdminConfigured()) {
-    const auth = getAdminAuth();
+    const auth = await getAdminAuth();
     if (!auth) return null;
     try {
       // `true` checks the token against revoked sessions — this is what makes
@@ -95,7 +95,7 @@ async function resolveUid(token: string): Promise<string | null> {
 
 /** Mints a Firebase session cookie from a freshly issued ID token. */
 export async function createFirebaseSession(idToken: string): Promise<void> {
-  const auth = getAdminAuth();
+  const auth = await getAdminAuth();
   if (!auth) throw new Error("Firebase Admin is not configured");
 
   const sessionCookie = await auth.createSessionCookie(idToken, {
@@ -118,7 +118,7 @@ export async function destroySession(): Promise<void> {
 
   if (token && isFirebaseAdminConfigured()) {
     try {
-      const auth = getAdminAuth();
+      const auth = await getAdminAuth();
       const decoded = await auth?.verifySessionCookie(token, false);
       // Revoking invalidates the session everywhere, not just in this browser.
       if (decoded) await auth?.revokeRefreshTokens(decoded.uid);

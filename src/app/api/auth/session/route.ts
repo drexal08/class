@@ -73,7 +73,7 @@ export async function DELETE() {
 }
 
 async function signInWithFirebase(idToken: string, intendedRole?: "TEACHER" | "STUDENT") {
-  const auth = getAdminAuth();
+  const auth = await getAdminAuth();
   if (!auth) {
     return NextResponse.json(
       { error: "Firebase Admin is not configured" },
