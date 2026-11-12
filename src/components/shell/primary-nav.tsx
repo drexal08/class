@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, LayoutGrid, ListTodo } from "lucide-react";
+import { Calculator, CalendarDays, LayoutGrid, ListTodo } from "lucide-react";
 
+import type { Role } from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -12,8 +13,10 @@ const LINKS = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
 ] as const;
 
-export function PrimaryNav() {
+export function PrimaryNav({ role }: { role: Role }) {
   const pathname = usePathname();
+  // The estimator is a student tool; admins keep access so they can inspect it.
+  const showBridge = role === "STUDENT" || role === "ADMIN";
 
   return (
     <nav aria-label="Main" className="flex items-center gap-1 overflow-x-auto">
@@ -39,6 +42,22 @@ export function PrimaryNav() {
           </Link>
         );
       })}
+
+      {showBridge && (
+        <Link
+          href="/bridge"
+          aria-current={pathname.startsWith("/bridge") ? "page" : undefined}
+          className={cn(
+            "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+            pathname.startsWith("/bridge")
+              ? "bg-secondary text-foreground"
+              : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+          )}
+        >
+          <Calculator className="size-4" strokeWidth={1.75} aria-hidden />
+          <span className="hidden sm:inline">CLA Bridge</span>
+        </Link>
+      )}
     </nav>
   );
 }

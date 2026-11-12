@@ -1,0 +1,69 @@
+# LMS Core — coding agent context
+
+LMS Core is a Next.js 16 App Router app (React 19, Prisma 7 + PostgreSQL,
+Firebase Auth/Admin, Pusher). This file is the shared memory for coding agents
+working on the repository; deeper product notes live in `README.md`,
+`SETUP.md` and `docs/`.
+
+## Commands
+
+```bash
+npm run dev          # local development
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint .
+npm run build        # prisma generate && next build
+npm run db:generate  # regenerate the Prisma client after schema changes
+npm run db:migrate   # create/apply a dev migration
+npm run db:deploy    # apply committed migrations in production
+npm run db:seed      # demo data
+```
+
+Run typecheck, lint and build before handing work back. A clean tree means all
+three pass.
+
+## Architecture rules
+
+- `src/lib/data/*` is server-only reads. `src/lib/actions/*` is `"use server"`
+  mutations. Never import either from a client component.
+- Authorization lives in `src/lib/auth/guards.ts` (`requireUser`,
+  `requireCourseAccess`, `requireCourseTeacher`, …). Resolve a resource *inside*
+  the scoped query (`where: { id, courseId }`) rather than checking after a
+  lookup.
+- The Prisma client is generated to `src/generated/prisma`. Schema changes need
+  `npm run db:generate`; committed migrations live in `prisma/migrations`.
+- UI uses the slate shadcn tokens (`bg-card`, `text-muted-foreground`,
+  `border-border`, `text-danger`, `text-warning`). Do not introduce a second
+  brand palette.
+- Route handlers are used where a browser must fire-and-forget (for example
+  `keepalive` on `pagehide`); everything else uses server actions.
+- All authenticated routes are `noindex`; keep that behaviour.
+
+## CLA Bridge (native port)
+
+The standalone `clabridge` app has been rebuilt inside LMS Core at `/bridge`.
+It is a student tool (admins may inspect every level; teachers are refused).
+The old external tab and `NEXT_PUBLIC_CLA_BRIDGE_URL` are gone — do not
+reintroduce them.
+
+- UI: `src/components/bridge/*`
+- Domain logic: `src/lib/bridge/*` (combinations, scoring, target tables,
+  progress/MAP planner, validation, bookmarklet, mark import)
+- Reads: `src/lib/data/bridge.ts`
+- Level selection: `src/lib/actions/bridge-actions.ts`
+- Autosave: `src/app/api/bridge/estimate/route.ts`
+- Schema: `BridgeLevel`, `BridgeProfile`, `BridgeEstimate` in
+  `prisma/schema.prisma`
+- Migration: `scripts/migrate-clabridge.ts`
+- Full port map, scoring rules and data mapping: `docs/clabridge-port.md`
+
+Keep the scoring behaviour identical to the standalone app. If you change a
+weight, a target column maximum or an import rule, update
+`docs/clabridge-port.md` and add or adjust a test so the two implementations
+cannot drift.
+
+## Environment
+
+Only `DATABASE_URL` is required to boot. Firebase, Pusher, R2/S3 and the
+AcademicBridge import degrade gracefully when their variables are absent.
+`AUTH_DEV_MODE=true` signs in as a seeded user without Firebase credentials
+and is hard-disabled in production.

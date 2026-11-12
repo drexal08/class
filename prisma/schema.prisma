@@ -49,6 +49,13 @@ enum PostPolicy {
   ONLY_TEACHERS
 }
 
+/// [+] CLA Bridge: the school level a student picks once.
+enum BridgeLevel {
+  S4
+  S5
+  S6
+}
+
 /// [+] Notification feed, so a user who was offline still sees what happened.
 enum NotificationType {
   ANNOUNCEMENT_POSTED
@@ -72,15 +79,51 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  enrollments    Enrollment[]
-  createdCourses Course[]       @relation("TeacherCourses")
-  submissions    Submission[]
-  comments       Comment[]
-  announcements  Announcement[]
-  attachments    Attachment[]   @relation("UploadedAttachments") // [+] Module D
-  notifications  Notification[]
+  enrollments     Enrollment[]
+  createdCourses  Course[]         @relation("TeacherCourses")
+  submissions     Submission[]
+  comments        Comment[]
+  announcements   Announcement[]
+  attachments     Attachment[]     @relation("UploadedAttachments") // [+] Module D
+  notifications   Notification[]
+  bridgeProfile   BridgeProfile?
+  bridgeEstimates BridgeEstimate[]
 
   @@index([role])
+}
+
+/// [+] CLA Bridge: the student's chosen school level. Students are locked to
+/// one level, mirroring the standalone app; admins may inspect every level.
+model BridgeProfile {
+  userId    String      @id
+  level     BridgeLevel
+  username  String?     @unique
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// [+] CLA Bridge: one saved estimator document per student and level.
+/// The JSON columns keep the exact shape of the original Firestore documents
+/// so imported estimates retain their marks, assessment tables and goals.
+model BridgeEstimate {
+  id               String      @id @default(cuid())
+  userId           String
+  level            BridgeLevel
+  combinationCode  String      @default("")
+  marks            Json        @default("{}")
+  targets          Json        @default("{}")
+  goalTargets      Json        @default("{}")
+  overallTarget    String?
+  usefulnessRating Int?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, level])
+  @@index([level])
 }
 
 /// [+] In-app notification feed (the bell menu). Persisted rather than
@@ -175,14 +218,14 @@ model Topic {
 // ---------------------------------------------------------------------------
 
 model Announcement {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   content   String
   courseId  String
   authorId  String
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   comments  Comment[]
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   /// [+] Module C — teachers pin announcements to the top of the stream
   pinned      Boolean      @default(false)
@@ -198,17 +241,17 @@ model Announcement {
 // ---------------------------------------------------------------------------
 
 model Assignment {
-  id          String    @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
   description String?
   dueDate     DateTime?
-  maxPoints   Int       @default(100)
+  maxPoints   Int          @default(100)
   courseId    String
   topicId     String?
-  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  topic       Topic?    @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic       Topic?       @relation(fields: [topicId], references: [id], onDelete: SetNull)
   submissions Submission[]
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime     @default(now())
 
   /// [+] Module D — Assignments / Quizzes / Questions / Material
   type      AssignmentType @default(ASSIGNMENT)
@@ -270,14 +313,14 @@ model Submission {
   createdAt    DateTime        @default(now())
 
   /// [+] Free-text student response (short-answer / Question type)
-  content   String?
+  content    String?
   /// [+] Set when a teacher records a grade; drives "Graded on ..." in the UI
-  gradedAt  DateTime?
+  gradedAt   DateTime?
   /// [+] Set when work is returned to the student
   returnedAt DateTime?
-  updatedAt DateTime  @updatedAt
+  updatedAt  DateTime  @updatedAt
 
-  attachments  Attachment[]  // [+] Module D — multi-file submissions
+  attachments  Attachment[] // [+] Module D — multi-file submissions
   rubricScores RubricScore[]
   comments     Comment[]
 
@@ -321,7 +364,7 @@ model Comment {
 /// [+] Module D — "Uploads file directly to Cloudflare R2 / S3 -> Saves metadata
 /// reference to database". One row per uploaded object.
 model Attachment {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   name     String
   url      String
   /// Object key in the bucket, retained so the file can be deleted or re-signed.

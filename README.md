@@ -55,6 +55,11 @@ percentages and CSV export. Students see only their own grades.
 review queue for teachers), a calendar of everything due, and a notification
 feed.
 
+**CLA Bridge** — a native report estimator tab for students and admins, with
+combination-aware weighting, assessment tables, target planning and a one-click
+AcademicBridge marks import. Data lives in PostgreSQL alongside the rest of LMS
+Core.
+
 **Admin** — institution-wide directory, statistics and role management.
 
 **SEO** — metadata with Open Graph and Twitter cards, a generated OG image,
@@ -64,7 +69,7 @@ Every authenticated route is explicitly `noindex`.
 ## Project layout
 
 ```
-prisma/schema.prisma     12 models, 5 enums
+prisma/schema.prisma     14 models, 6 enums
 prisma/seed.ts           demo classes, students and grades
 src/proxy.ts             route gate (Next 16's replacement for middleware.ts)
 src/lib/data/*           server-only reads — never network-reachable
@@ -86,6 +91,7 @@ file is a public POST endpoint, so all reads live in `src/lib/data/*` behind
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 | `npm run db:migrate` | Create/apply migrations |
+| `npm run db:migrate-clabridge` | One-time Firestore → PostgreSQL CLA Bridge import |
 | `npm run db:seed` | Load demo data |
 | `npm run db:studio` | Prisma Studio |
 

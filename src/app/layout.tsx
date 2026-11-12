@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 
+import { BridgeImportListener } from "@/components/bridge/import-listener";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/lib/site";
 
@@ -87,6 +88,9 @@ export default function RootLayout({
           Skip to main content
         </a>
         {children}
+        {/* Bookmarklet payloads can arrive before the estimator mounts (for
+            example during the sign-in redirect), so listen on every page. */}
+        <BridgeImportListener />
         <Toaster />
       </body>
     </html>
