@@ -135,6 +135,12 @@ S3_BUCKET="uploads"              # optional: defaults to "uploads"
 The app reads the `S3_*` variables first and falls back to the `AWS_*` ones, so
 a deployment can point at R2 or AWS S3 instead without touching the code.
 
+**A deployed app needs these variables in its host's environment** — on Vercel:
+Project → Settings → Environment Variables. The access key and secret are
+marked as secrets there; the endpoint, region and bucket name are plain. Env
+changes only reach new deployments, so redeploy afterwards and confirm with
+`GET /api/health`, which reports `services.storage`.
+
 Neon buckets allow cross-origin requests out of the box (all origins, `PUT`,
 `GET`, `POST`, `HEAD` and `DELETE`), so the browser can upload straight to the
 bucket without any extra configuration.

@@ -87,3 +87,9 @@ is private, so reads go through the presigned URLs in
 `src/lib/storage/s3.ts`. Neon allows cross-origin requests on its buckets by
 default, so no CORS setup is needed. `npm run storage:test` proves the round
 trip (upload, list, read back, CORS preflight) and leaves the bucket empty.
+
+The app is deployed on Vercel (project `class` under `drexal08s-projects`).
+Its Production and Preview environments hold `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION` and `S3_BUCKET`;
+env changes only reach new deployments, so redeploy and check
+`GET /api/health` (`services.storage`) afterwards.
