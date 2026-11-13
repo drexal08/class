@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Search } from "lucide-react";
 
+import { LegacyBridgeStudents } from "@/components/admin/legacy-bridge-students";
 import { UserDirectory } from "@/components/admin/user-directory";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCurrentUser } from "@/lib/auth/session";
+import { listStagedBridgeStudents } from "@/lib/data/bridge";
 import { getInstitutionStats, listAllUsers } from "@/lib/data/courses";
 
 export const metadata: Metadata = { title: "Admin console" };
@@ -21,9 +23,10 @@ export default async function AdminPage({
   if (!user || !user.isAdmin) notFound();
 
   const { q } = await searchParams;
-  const [stats, users] = await Promise.all([
+  const [stats, users, staged] = await Promise.all([
     getInstitutionStats(),
     listAllUsers(q),
+    listStagedBridgeStudents(),
   ]);
 
   return (
@@ -63,6 +66,10 @@ export default async function AdminPage({
         <div className="mt-4">
           <UserDirectory users={users} viewerId={user.id} />
         </div>
+      </div>
+
+      <div className="mt-10">
+        <LegacyBridgeStudents rows={staged} />
       </div>
     </div>
   );

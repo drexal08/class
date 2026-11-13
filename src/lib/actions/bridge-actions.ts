@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { AuthError, requireUser, runAction } from "@/lib/auth/guards";
+import { AuthError, requireAdmin, requireUser, runAction } from "@/lib/auth/guards";
+import { claimLegacyRow } from "@/lib/bridge/claim";
 import { bridgeLevelSchema } from "@/lib/bridge/validation";
 import { prisma } from "@/lib/prisma";
 import type { ActionState } from "@/lib/types";
@@ -54,5 +55,85 @@ export async function setBridgeLevelAction(
 
     revalidatePath("/bridge");
     redirect("/bridge");
+  });
+}
+
+/**
+ * Admin-only: attaches a staged clabridge row to an LMS account.
+ *
+ * A student who registered with a different address than the one in Firestore
+ * would never claim their import on their own. The administrator points the
+ * staged row at the account that exists and the import lands right away.
+ */
+export async function assignLegacyBridgeStudentAction(
+  rowId: string,
+  email: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireAdmin();
+
+    const row = await prisma.bridgeLegacyStudent.findUnique({
+      where: { id: rowId },
+      select: { id: true, claimedAt: true },
+    });
+    if (!row) return { error: "That staged student no longer exists" };
+    if (row.claimedAt) {
+      return { error: "That staged student was already claimed" };
+    }
+
+    const address = email.trim();
+    if (!address) return { error: "Enter the address of the LMS account" };
+
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: address, mode: "insensitive" } },
+      select: { id: true, email: true },
+    });
+    if (!user) return { error: "No LMS account uses that address" };
+
+    const holder = await prisma.bridgeLegacyStudent.findFirst({
+      where: { email: user.email, id: { not: row.id } },
+      select: { id: true },
+    });
+    if (holder) {
+      return {
+        error: "Another staged student already holds that address",
+      };
+    }
+
+    await prisma.bridgeLegacyStudent.update({
+      where: { id: row.id },
+      data: { email: user.email },
+    });
+
+    await claimLegacyRow({ id: user.id, email: user.email }, row.id);
+
+    revalidatePath("/admin");
+  });
+}
+
+/**
+ * Admin-only: throws away a staged clabridge row.
+ *
+ * Some source documents have no address at all and can never be claimed, so
+ * an administrator needs a way to clear them out of the way.
+ */
+export async function discardLegacyBridgeStudentAction(
+  rowId: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireAdmin();
+
+    const row = await prisma.bridgeLegacyStudent.findUnique({
+      where: { id: rowId },
+      select: { id: true, claimedAt: true },
+    });
+    if (!row) return { error: "That staged student no longer exists" };
+    if (row.claimedAt) {
+      return { error: "That staged student was already claimed" };
+    }
+
+    await prisma.bridgeLegacyStudent.delete({ where: { id: row.id } });
+
+    revalidatePath("/admin");
   });
 }

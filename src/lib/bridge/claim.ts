@@ -128,87 +128,102 @@ export async function claimLegacyBridgeData(user: {
 
   const staged = await prisma.bridgeLegacyStudent.findUnique({
     where: { email },
-    select: { id: true, claimedAt: true, level: true },
+    select: { id: true, claimedAt: true },
   });
   if (!staged || staged.claimedAt) return null;
 
   try {
-    // Neon suspends an idle branch and wakes on the first query, which can eat
-    // most of Prisma's 5 s default before the transaction even starts. The
-    // writes themselves are a handful of rows, so a longer ceiling is safe and
-    // a slow cold start must not cost the student their imported data.
-    return await prisma.$transaction(
-      async (tx) => {
-        // Re-read inside the transaction: two parallel renders of /bridge must
-        // not both create a profile.
-        const row = await tx.bridgeLegacyStudent.findUnique({
-          where: { id: staged.id },
-          select: {
-            id: true,
-            claimedAt: true,
-            level: true,
-            username: true,
-            estimates: true,
-          },
-        });
-        if (!row || row.claimedAt) return null;
-
-        const profile = await tx.bridgeProfile.findUnique({
-          where: { userId: user.id },
-          select: { userId: true, level: true, username: true },
-        });
-
-        // A source document without a level still keeps its estimates: they
-        // are keyed by level, so whichever one the student picks in the
-        // estimator is already populated. The picker handles the profile, and
-        // the row stays unclaimed so a later visit can attach the nickname.
-        if (!profile && row.level) {
-          await tx.bridgeProfile.create({
-            data: {
-              userId: user.id,
-              level: row.level,
-              username: await freeUsername(tx, row.username),
-            },
-          });
-        } else if (profile && !profile.username && row.username) {
-          // A profile created before the import ran (or by a failed claim) can
-          // still pick up the clabridge handle, as long as it is free.
-          const username = await freeUsername(tx, row.username);
-          if (username) {
-            await tx.bridgeProfile.update({
-              where: { userId: user.id },
-              data: { username },
-            });
-          }
-        }
-
-        for (const estimate of stagedEstimates(row.estimates)) {
-          await tx.bridgeEstimate.upsert({
-            where: { userId_level: { userId: user.id, level: estimate.level } },
-            create: { userId: user.id, ...estimate },
-            // Anything already saved here wins; the import only fills gaps.
-            update: {},
-          });
-        }
-
-        // With no level and no profile there is nothing to hang the nickname
-        // on yet: leave the row open so the visit after the level picker can
-        // finish the claim.
-        if (row.level || profile) {
-          await tx.bridgeLegacyStudent.update({
-            where: { id: row.id },
-            data: { claimedByUserId: user.id, claimedAt: new Date() },
-          });
-        }
-
-        // The level the student will actually use: their own choice wins over
-        // the one clabridge had saved.
-        return profile?.level ?? row.level;
-      },
-      { maxWait: 10_000, timeout: 20_000 },
-    );
+    return await claimLegacyRow(user, staged.id);
   } catch (error) {
     console.error("[bridge] Could not claim legacy clabridge data", error);
     return null;
   }
+}
+
+/**
+ * Attaches one staged row to one account.
+ *
+ * The row is looked up by id rather than by address, so an administrator can
+ * move a student onto the account they actually registered with even when the
+ * two addresses differ. Throws on failure: the caller decides whether a
+ * missing import may be swallowed.
+ */
+export async function claimLegacyRow(
+  user: { id: string; email: string },
+  rowId: string,
+): Promise<BridgeLevel | null> {
+  // Neon suspends an idle branch and wakes on the first query, which can eat
+  // most of Prisma's 5 s default before the transaction even starts. The
+  // writes themselves are a handful of rows, so a longer ceiling is safe and
+  // a slow cold start must not cost the student their imported data.
+  return prisma.$transaction(
+    async (tx) => {
+      // Re-read inside the transaction: two parallel claims of the same row
+      // must not both create a profile.
+      const row = await tx.bridgeLegacyStudent.findUnique({
+        where: { id: rowId },
+        select: {
+          id: true,
+          claimedAt: true,
+          level: true,
+          username: true,
+          estimates: true,
+        },
+      });
+      if (!row || row.claimedAt) return null;
+
+      const profile = await tx.bridgeProfile.findUnique({
+        where: { userId: user.id },
+        select: { userId: true, level: true, username: true },
+      });
+
+      // A source document without a level still keeps its estimates: they
+      // are keyed by level, so whichever one the student picks in the
+      // estimator is already populated. The picker handles the profile, and
+      // the row stays unclaimed so a later visit can attach the nickname.
+      if (!profile && row.level) {
+        await tx.bridgeProfile.create({
+          data: {
+            userId: user.id,
+            level: row.level,
+            username: await freeUsername(tx, row.username),
+          },
+        });
+      } else if (profile && !profile.username && row.username) {
+        // A profile created before the import ran (or by a failed claim) can
+        // still pick up the clabridge handle, as long as it is free.
+        const username = await freeUsername(tx, row.username);
+        if (username) {
+          await tx.bridgeProfile.update({
+            where: { userId: user.id },
+            data: { username },
+          });
+        }
+      }
+
+      for (const estimate of stagedEstimates(row.estimates)) {
+        await tx.bridgeEstimate.upsert({
+          where: { userId_level: { userId: user.id, level: estimate.level } },
+          create: { userId: user.id, ...estimate },
+          // Anything already saved here wins; the import only fills gaps.
+          update: {},
+        });
+      }
+
+      // With no level and no profile there is nothing to hang the nickname
+      // on yet: leave the row open so the visit after the level picker can
+      // finish the claim.
+      if (row.level || profile) {
+        await tx.bridgeLegacyStudent.update({
+          where: { id: row.id },
+          data: { claimedByUserId: user.id, claimedAt: new Date() },
+        });
+      }
+
+      // The level the student will actually use: their own choice wins over
+      // the one clabridge had saved.
+      return profile?.level ?? row.level;
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
 }
