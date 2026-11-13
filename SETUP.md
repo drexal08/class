@@ -135,11 +135,19 @@ S3_BUCKET="uploads"              # optional: defaults to "uploads"
 The app reads the `S3_*` variables first and falls back to the `AWS_*` ones, so
 a deployment can point at R2 or AWS S3 instead without touching the code.
 
+Neon buckets allow cross-origin requests out of the box (all origins, `PUT`,
+`GET`, `POST`, `HEAD` and `DELETE`), so the browser can upload straight to the
+bucket without any extra configuration.
+
 Check it end to end:
 
 ```bash
 npm run storage:test   # upload a text file, list the bucket, read it back
 ```
+
+The test also replays what the browser does — the CORS preflight and a
+cross-origin read — and removes the object afterwards, so the bucket is left
+empty.
 
 ### Cloudflare R2 or AWS S3
 
@@ -153,7 +161,8 @@ S3_PUBLIC_URL="https://files.yourdomain.com"   # optional public domain
 ```
 
 **The bucket must allow `PUT` from your app's origin.** The browser uploads
-directly, so without CORS every upload fails. Example R2 CORS rule:
+directly, so without CORS every upload fails. Neon sets this up for you;
+R2 and AWS S3 need a rule of their own. Example R2 CORS rule:
 
 ```json
 [

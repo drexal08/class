@@ -84,4 +84,6 @@ File uploads live in Neon Object Storage, bucket `uploads`, declared in
 AWS-standard `AWS_*` variables into `.env`; the app reads them when the
 `S3_*` ones are absent (`src/lib/env.ts` → `getStorageConfig`). The bucket
 is private, so reads go through the presigned URLs in
-`src/lib/storage/s3.ts`. `npm run storage:test` proves the round trip.
+`src/lib/storage/s3.ts`. Neon allows cross-origin requests on its buckets by
+default, so no CORS setup is needed. `npm run storage:test` proves the round
+trip (upload, list, read back, CORS preflight) and leaves the bucket empty.
