@@ -51,8 +51,12 @@ reintroduce them.
 - Reads: `src/lib/data/bridge.ts`
 - Level selection: `src/lib/actions/bridge-actions.ts`
 - Autosave: `src/app/api/bridge/estimate/route.ts`
-- Schema: `BridgeLevel`, `BridgeProfile`, `BridgeEstimate` in
-  `prisma/schema.prisma`
+- Legacy import: `scripts/migrate-clabridge.ts` stages Firestore students in
+  `BridgeLegacyStudent`; `src/lib/bridge/claim.ts` claims a row on the first
+  `/bridge` visit, because the standalone app used a different Firebase project
+  and its UIDs are not `User.id`s
+- Schema: `BridgeLevel`, `BridgeProfile`, `BridgeEstimate`,
+  `BridgeLegacyStudent` in `prisma/schema.prisma`
 - Migration: `scripts/migrate-clabridge.ts`
 - Full port map, scoring rules and data mapping: `docs/clabridge-port.md`
 

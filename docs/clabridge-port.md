@@ -175,7 +175,17 @@ tab, plus `cla-bridge:progress` messages while it works.
 
 ## Firestore → PostgreSQL migration
 
-`scripts/migrate-clabridge.ts` is a one-time, idempotent migration.
+The standalone CLA Bridge ran on its own Firebase project, so its UIDs are not
+LMS Core `User.id`s and those accounts cannot sign in here. The import therefore
+runs in two steps, with an email address as the only join key:
+
+1. `scripts/migrate-clabridge.ts` **stages** every Firestore student in
+   `BridgeLegacyStudent`, keyed by lowercased email. No `User` row is needed,
+   so students who have not registered yet keep their nickname, level and marks
+   waiting.
+2. `src/lib/bridge/claim.ts` **claims** that row the first time the student
+   opens `/bridge`: it creates the `BridgeProfile` (level and nickname) plus any
+   missing `BridgeEstimate` rows, then stamps `claimedAt`.
 
 Source shape:
 
@@ -212,37 +222,52 @@ Steps:
    npm run db:migrate-clabridge
    ```
 
-4. Apply:
+4. Stage the rows:
 
    ```bash
    npm run db:migrate-clabridge -- --apply
    ```
 
-The script joins each Firebase UID to an LMS Core user by email (from the
-student document or Firebase Auth), skips users that do not exist in LMS Core,
-and leaves a username unset if it is already taken. It upserts profiles and all
-three estimate levels, so it is safe to re-run.
+Claiming rules:
+
+- Nicknames were already unique in clabridge (`^[a-z0-9_]{3,20}$`), so staging
+  preserves all of them. If a handle is somehow taken when claiming, the
+  estimates still land and the nickname is left unset rather than stolen.
+- Claiming never overwrites an estimate the student has already edited here; it
+  only fills gaps.
+- A source document with **no level** (`ikaellordmercy@gmail.com`) still gets
+  its three estimates, because estimates are keyed by level. The row stays
+  unclaimed until the student picks a level; the visit right after that picks
+  up the nickname too.
+- The transaction gets a 20 s ceiling. Neon suspends an idle branch, and a
+  cold start can otherwise eat Prisma's 5 s default before the first write.
+- Already-claimed rows are skipped by re-runs, so the script is safe to repeat.
+- A student who registers with a **different** email will not match. The staged
+  row stays unclaimed until the address is fixed by hand — there is no admin UI
+  for that yet.
+- The one source document with no email on the document or the Auth user is
+  skipped and reported.
 
 ### Migration status (2026-11-13)
 
-Applied against the Neon project `neon-amethyst-candle` (`floral-dust-66359032`).
-The two apps use **different Firebase projects**, so a student's clabridge UID is
-not their LMS Core `User.id`; the email address is the only join key.
+Staged against the Neon project `neon-amethyst-candle` (`floral-dust-66359032`).
 
 | Measure | Count |
 | :-- | --: |
 | clabridge student documents | 28 |
-| matched an LMS Core user | 1 |
-| profiles written | 1 |
-| estimates written | 3 |
-| skipped — no LMS Core account | 26 |
+| staged rows | 27 |
+| already had an LMS account | 1 |
+| no LMS account yet | 26 |
 | skipped — no email anywhere | 1 |
 
-The unmatched students still have their data in Firestore. Once one of them has
-an LMS Core account with the same email, re-running the script picks them up, so
-the import can be repeated as accounts are created. Do **not** invent `User`
-rows keyed by clabridge UIDs: those UIDs belong to another Firebase project and
-could never sign in here.
+`byiringirinnocent8@gmail.com` was also imported directly before staging
+existed: profile S6 (`@giant`) and three estimates. The remaining 18 students
+with real marks and assessment tables keep them in `BridgeLegacyStudent` until
+they sign in.
+
+Do **not** invent `User` rows keyed by clabridge UIDs: those UIDs belong to
+another Firebase project, and the email uniqueness constraint would then block
+the real account from ever being created.
 
 ## Deliberate differences
 

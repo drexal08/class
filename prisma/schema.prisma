@@ -88,6 +88,7 @@ model User {
   notifications   Notification[]
   bridgeProfile   BridgeProfile?
   bridgeEstimates BridgeEstimate[]
+  claimedBridgeLegacy BridgeLegacyStudent? @relation("ClaimedBridgeLegacy")
 
   @@index([role])
 }
@@ -124,6 +125,34 @@ model BridgeEstimate {
 
   @@unique([userId, level])
   @@index([level])
+}
+
+/// [+] CLA Bridge: a Firestore student waiting for an LMS Core account.
+///
+/// The standalone app ran on a different Firebase project, so its UIDs cannot
+/// sign in here and its rows cannot point at a `User` until the student
+/// registers with the same email. Staging keeps the nickname reserved and the
+/// estimates intact until then; `claimLegacyBridgeData` moves the row into
+/// `BridgeProfile` / `BridgeEstimate` on the first visit to `/bridge`.
+model BridgeLegacyStudent {
+  id              String      @id @default(cuid())
+  /// Firestore document id (`students/{uid}`), used for idempotent re-imports.
+  sourceUid       String      @unique
+  /// Lowercased. Null only for the one source document that had no address
+  /// anywhere, not even in Firebase Auth.
+  email           String?     @unique
+  level           BridgeLevel?
+  username        String?
+  /// `{ "S4": { combinationCode, marks, targets, goalTargets, ... }, ... }`
+  estimates       Json        @default("{}")
+  claimedByUserId String?     @unique
+  claimedAt       DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  claimedBy User? @relation("ClaimedBridgeLegacy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([claimedAt])
 }
 
 /// [+] In-app notification feed (the bell menu). Persisted rather than

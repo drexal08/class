@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { BridgeEstimator } from "@/components/bridge/bridge-estimator";
 import { BridgeLevelPicker } from "@/components/bridge/level-picker";
 import { Card } from "@/components/ui/card";
+import { getCurrentUser } from "@/lib/auth/session";
+import { claimLegacyBridgeData } from "@/lib/bridge/claim";
 import { fromBridgeLevel } from "@/lib/bridge/combinations";
 import { bridgeLevelSchema } from "@/lib/bridge/validation";
 import type { SubjectTargets } from "@/lib/bridge/target-table";
@@ -68,6 +70,14 @@ export default async function BridgePage({
     String(requestedLevel ?? "").toUpperCase(),
   );
 
+  // Claiming is a write, but it has to happen before the workspace is read so
+  // a returning clabridge student lands on their saved estimate instead of the
+  // level picker. It is idempotent, so a prefetch or a double render is safe.
+  const signedIn = await getCurrentUser();
+  if (signedIn && signedIn.role !== "TEACHER") {
+    await claimLegacyBridgeData(signedIn);
+  }
+
   const workspace = await getBridgeWorkspace(
     requested.success ? requested.data : undefined,
   );
@@ -105,6 +115,7 @@ export default async function BridgePage({
       level={fromBridgeLevel(level)}
       ownerName={ownerName}
       email={user.email}
+      username={workspace.profile?.username ?? null}
       isAdmin={user.role === "ADMIN"}
       initial={{
         combinationCode: estimate?.combinationCode ?? "",

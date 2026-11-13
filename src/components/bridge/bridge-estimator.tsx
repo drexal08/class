@@ -122,12 +122,15 @@ export function BridgeEstimator({
   level,
   ownerName,
   email,
+  username,
   isAdmin,
   initial,
 }: {
   level: Level;
   ownerName: string;
   email: string;
+  /** Clabridge handle, preserved through the import. Null for new accounts. */
+  username: string | null;
   isAdmin: boolean;
   initial: BridgeInitialEstimate;
 }) {
@@ -496,6 +499,7 @@ export function BridgeEstimator({
         </div>
 
         <p className="text-sm text-muted-foreground">
+          {username ? `@${username} · ` : ""}
           {email} · {lv.label}
         </p>
       </header>

@@ -1,14 +1,21 @@
 /**
- * One-time CLA Bridge data migration: Firestore → LMS Core PostgreSQL.
+ * One-time CLA Bridge data import: Firestore → LMS Core PostgreSQL.
  *
  * The standalone CLA Bridge stored each student under `students/{firebaseUid}`
  * and each saved estimator under `students/{firebaseUid}/estimates/{s4|s5|s6}`.
- * LMS Core keys everything by its own `User.id`, so the two are joined by the
- * Firebase Auth email shared by both projects.
+ * It also ran on its own Firebase project, so those UIDs are not LMS Core
+ * `User.id`s and cannot sign in here.
+ *
+ * This script therefore *stages* every source document in
+ * `BridgeLegacyStudent`, keyed by lowercased email. Nothing is written to
+ * `BridgeProfile` / `BridgeEstimate` here: `claimLegacyBridgeData` attaches a
+ * staged row to the student's account the first time they open `/bridge`, which
+ * is also when their `User` row is guaranteed to exist. Students who have not
+ * registered yet keep their nickname, level and marks waiting.
  *
  * Usage:
  *   npm run db:migrate-clabridge            # dry run — prints what would move
- *   npm run db:migrate-clabridge -- --apply # write to PostgreSQL
+ *   npm run db:migrate-clabridge -- --apply # write the staging table
  *
  * Credentials: set CLABRIDGE_SERVICE_ACCOUNT_KEY (raw or base64 JSON) or
  * CLABRIDGE_SERVICE_ACCOUNT_FILE to a service-account JSON file for the
@@ -24,15 +31,25 @@ import type { ServiceAccount } from "firebase-admin/app";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 
 import { PrismaClient } from "../src/generated/prisma/client";
 
 const SOURCE_PROJECT = process.env.CLABRIDGE_PROJECT_ID ?? "clabridge-d7e6f";
 const APPLY = process.argv.includes("--apply");
 const LEVELS = ["s4", "s5", "s6"] as const;
-type SourceLevel = (typeof LEVELS)[number];
 
 type SourceEstimate = Record<string, unknown>;
+
+/** One staged estimate, in the shape `claimLegacyBridgeData` reads back. */
+type StagedEstimateJson = {
+  combinationCode: string;
+  marks: Record<string, string>;
+  targets: Record<string, Record<string, TargetCells>>;
+  goalTargets: Record<string, string>;
+  overallTarget: string | null;
+  usefulnessRating: number | null;
+};
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -97,23 +114,7 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
 
-/** Strip Firestore-specific values so a document can be stored as JSON. */
-function plainJson(value: unknown): unknown {
-  if (value === null || typeof value !== "object") return value;
-  if (Array.isArray(value)) return value.map(plainJson);
-  if (
-    "toDate" in value &&
-    typeof (value as { toDate?: unknown }).toDate === "function"
-  ) {
-    return (value as { toDate: () => Date }).toDate().toISOString();
-  }
-  const result: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (entry !== undefined) result[key] = plainJson(entry);
-  }
-  return result;
-}
-
+/** Coerce a stored mark/goal map into string values. */
 function stringMap(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const result: Record<string, string> = {};
@@ -126,12 +127,16 @@ function stringMap(value: unknown): Record<string, string> {
   return result;
 }
 
-function targetMap(value: unknown): Record<string, unknown> {
+type TargetCells = { got: string; total: string }[];
+
+function targetMap(
+  value: unknown,
+): Record<string, Record<string, TargetCells>> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const result: Record<string, unknown> = {};
+  const result: Record<string, Record<string, TargetCells>> = {};
   for (const [key, entry] of Object.entries(value)) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
-    const columns: Record<string, unknown> = {};
+    const columns: Record<string, TargetCells> = {};
     for (const [column, cells] of Object.entries(entry)) {
       if (!Array.isArray(cells)) continue;
       columns[column] = cells.map((cell) => {
@@ -157,149 +162,178 @@ function optionalRating(value: unknown): number | null {
   return Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null;
 }
 
+/** One staged student, in the shape `BridgeLegacyStudent` stores. */
+type SourceStudent = {
+  uid: string;
+  email: string;
+  level: "S4" | "S5" | "S6" | null;
+  username: string | null;
+  estimates: Record<string, StagedEstimateJson>;
+};
+
+/**
+ * Reads one Firestore student document into the shape we stage.
+ *
+ * Returns null when the source has no email to join on, neither on the
+ * document nor on the Firebase Auth user.
+ */
+async function readStudent(
+  document: QueryDocumentSnapshot,
+): Promise<SourceStudent | null> {
+  const data = document.data();
+
+  let email = typeof data["email"] === "string" ? data["email"] : "";
+  if (!email) {
+    try {
+      email = (await auth.getUser(document.id)).email ?? "";
+    } catch {
+      email = "";
+    }
+  }
+  if (!email) return null;
+
+  const sourceLevel = String(data["level"] ?? "").toLowerCase();
+  const level = (LEVELS as readonly string[]).includes(sourceLevel)
+    ? (sourceLevel.toUpperCase() as "S4" | "S5" | "S6")
+    : null;
+
+  const rawUsername = optionalString(data["username"]);
+  const username = rawUsername
+    ? rawUsername.trim().replace(/^@/, "").toLowerCase()
+    : null;
+
+  const estimates: Record<string, StagedEstimateJson> = {};
+  for (const sourceKey of LEVELS) {
+    const snapshot = await document.ref
+      .collection("estimates")
+      .doc(sourceKey)
+      .get();
+    if (!snapshot.exists) continue;
+
+    const estimate = snapshot.data() as SourceEstimate;
+    estimates[sourceKey.toUpperCase()] = {
+      combinationCode: optionalString(estimate["combination_code"]) ?? "",
+      marks: stringMap(estimate["marks"]),
+      targets: targetMap(estimate["targets"]),
+      goalTargets: stringMap(estimate["goal_targets"]),
+      overallTarget: optionalString(estimate["overall_target"]),
+      usefulnessRating: optionalRating(estimate["usefulness_rating"]),
+    };
+  }
+
+  return {
+    uid: document.id,
+    email: email.trim().toLowerCase(),
+    level,
+    username,
+    estimates,
+  };
+}
+
+/** Writes one staged student. Safe to re-run: it upserts on the source uid. */
+async function stageStudent(student: SourceStudent): Promise<void> {
+  await prisma.bridgeLegacyStudent.upsert({
+    where: { sourceUid: student.uid },
+    create: {
+      sourceUid: student.uid,
+      email: student.email,
+      level: student.level,
+      username: student.username,
+      estimates: student.estimates,
+    },
+    update: {
+      email: student.email,
+      level: student.level,
+      username: student.username,
+      estimates: student.estimates,
+    },
+  });
+}
+
+/** One-line report for the dry-run output. */
+function describeStudent(student: SourceStudent, hasAccount: boolean): string {
+  const levels = Object.keys(student.estimates);
+  return (
+    `${student.email}: ${student.level ?? "no level"}` +
+    `${student.username ? ` (@${student.username})` : ""}, ` +
+    `${levels.length} estimate${levels.length === 1 ? "" : "s"}` +
+    `${levels.length ? ` [${levels.join(", ")}]` : ""}` +
+    `${hasAccount ? "" : " — no LMS account yet"}`
+  );
+}
+
 async function main() {
   console.log(
-    `${APPLY ? "Applying" : "Dry run:"} CLA Bridge migration from ${SOURCE_PROJECT} → PostgreSQL\n`,
+    `${APPLY ? "Applying" : "Dry run:"} CLA Bridge import from ${SOURCE_PROJECT} → BridgeLegacyStudent\n`,
   );
 
-  const users = await prisma.user.findMany({
-    select: { id: true, email: true },
-  });
-  const byEmail = new Map(
-    users.map((user) => [user.email.trim().toLowerCase(), user]),
+  const accountEmails = new Set(
+    (await prisma.user.findMany({ select: { email: true } })).map((user) =>
+      user.email.trim().toLowerCase(),
+    ),
   );
-  const takenUsernames = new Set(
+
+  const claimedUids = new Set(
     (
-      await prisma.bridgeProfile.findMany({
-        where: { username: { not: null } },
-        select: { username: true },
+      await prisma.bridgeLegacyStudent.findMany({
+        select: { sourceUid: true, claimedAt: true },
+        where: { claimedAt: { not: null } },
       })
-    )
-      .map((profile) => profile.username?.toLowerCase())
-      .filter((name): name is string => Boolean(name)),
+    ).map((row) => row.sourceUid),
   );
 
   const students = await firestore.collection("students").get();
   const summary = {
     students: students.size,
-    matched: 0,
-    profiles: 0,
-    estimates: 0,
+    staged: 0,
+    withAccount: 0,
+    withoutAccount: 0,
+    alreadyClaimed: 0,
     skippedNoEmail: 0,
-    skippedNoUser: 0,
-    usernameConflicts: 0,
     errors: 0,
   };
 
   for (const document of students.docs) {
-    const uid = document.id;
-    const data = document.data();
-
-    let email = typeof data["email"] === "string" ? data["email"] : "";
-    if (!email) {
-      try {
-        email = (await auth.getUser(uid)).email ?? "";
-      } catch {
-        email = "";
-      }
+    if (claimedUids.has(document.id)) {
+      summary.alreadyClaimed += 1;
+      continue;
     }
-    if (!email) {
+
+    const student = await readStudent(document);
+    if (!student) {
       summary.skippedNoEmail += 1;
-      console.warn(`- ${uid}: no email on the student document or Auth user`);
+      console.warn(
+        `- ${document.id}: no email on the student document or Auth user`,
+      );
       continue;
     }
 
-    const user = byEmail.get(email.trim().toLowerCase());
-    if (!user) {
-      summary.skippedNoUser += 1;
-      console.warn(`- ${uid} (${email}): no LMS Core user with that email`);
+    const hasAccount = accountEmails.has(student.email);
+    summary[hasAccount ? "withAccount" : "withoutAccount"] += 1;
+    console.log(describeStudent(student, hasAccount));
+
+    if (!APPLY) {
+      summary.staged += 1;
       continue;
     }
-    summary.matched += 1;
 
-    const sourceLevel = String(data["level"] ?? "").toLowerCase();
-    const level = (LEVELS as readonly string[]).includes(sourceLevel)
-      ? (sourceLevel.toUpperCase() as "S4" | "S5" | "S6")
-      : null;
-
-    const rawUsername = optionalString(data["username"]);
-    let username: string | null = null;
-    if (rawUsername) {
-      const normalized = rawUsername.trim().replace(/^@/, "").toLowerCase();
-      if (takenUsernames.has(normalized)) {
-        summary.usernameConflicts += 1;
-        console.warn(
-          `- ${email}: username @${normalized} is already used in LMS Core; leaving it unset`,
-        );
-      } else {
-        username = normalized;
-        takenUsernames.add(normalized);
-      }
-    }
-
-    if (!level) {
-      console.warn(`- ${email}: no valid level saved; skipping profile`);
-    } else {
-      summary.profiles += 1;
-      console.log(
-        `- ${email}: ${level}${username ? ` (@${username})` : ""}`,
-      );
-      if (APPLY) {
-        await prisma.bridgeProfile.upsert({
-          where: { userId: user.id },
-          create: { userId: user.id, level, username },
-          update: {
-            level,
-            ...(username ? { username } : {}),
-          },
-        });
-      }
-    }
-
-    for (const sourceKey of LEVELS) {
-      const snapshot = await document.ref
-        .collection("estimates")
-        .doc(sourceKey)
-        .get();
-      if (!snapshot.exists) continue;
-      const estimate = snapshot.data() as SourceEstimate;
-      const targetLevel = sourceKey.toUpperCase() as "S4" | "S5" | "S6";
-
-      summary.estimates += 1;
-      const marks = stringMap(estimate["marks"]);
-      const targets = targetMap(estimate["targets"]);
-      const goalTargets = stringMap(estimate["goal_targets"]);
-      const combinationCode = optionalString(estimate["combination_code"]) ?? "";
-      const overallTarget = optionalString(estimate["overall_target"]);
-      const usefulnessRating = optionalRating(estimate["usefulness_rating"]);
-
-      console.log(
-        `  ${targetLevel}: ${combinationCode || "no combination"}, ` +
-          `${Object.keys(marks).length} marks, ${Object.keys(targets).length} tables`,
-      );
-
-      if (APPLY) {
-        const payload = {
-          combinationCode,
-          marks: plainJson(marks) as object,
-          targets: plainJson(targets) as object,
-          goalTargets: plainJson(goalTargets) as object,
-          overallTarget,
-          usefulnessRating,
-        };
-        await prisma.bridgeEstimate.upsert({
-          where: { userId_level: { userId: user.id, level: targetLevel } },
-          create: { userId: user.id, level: targetLevel, ...payload },
-          update: payload,
-        });
-      }
+    try {
+      await stageStudent(student);
+      summary.staged += 1;
+    } catch (error) {
+      summary.errors += 1;
+      console.error(`  failed to stage ${student.email}:`, error);
     }
   }
 
   console.log("\nSummary");
   console.table(summary);
   if (!APPLY) {
-    console.log("\nNothing was written. Re-run with `-- --apply` to migrate.");
+    console.log("\nNothing was written. Re-run with `-- --apply` to stage.");
+  } else {
+    console.log(
+      "\nStaged rows are claimed automatically the first time each student opens /bridge.",
+    );
   }
 }
 
