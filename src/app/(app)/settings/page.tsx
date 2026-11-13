@@ -56,30 +56,32 @@ export default async function SettingsPage() {
           <ProfileForm displayName={user.displayName ?? ""} />
         </Card>
 
-        <Card className="p-6">
-          <h2 className="font-medium">This deployment</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Optional integrations and whether they are configured.
-          </p>
+        {user.role === "ADMIN" && (
+          <Card className="p-6">
+            <h2 className="font-medium">This deployment</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Optional integrations and whether they are configured.
+            </p>
 
-          <dl className="mt-4 space-y-2 text-sm">
-            <ServiceRow
-              label="Authentication (Firebase)"
-              ready={isFirebaseAdminConfigured()}
-              fallback="Development sign-in"
-            />
-            <ServiceRow
-              label="File uploads (R2 / S3)"
-              ready={isStorageConfigured()}
-              fallback="Disabled"
-            />
-            <ServiceRow
-              label="Live updates (Pusher)"
-              ready={isRealtimeConfigured()}
-              fallback="Polling"
-            />
-          </dl>
-        </Card>
+            <dl className="mt-4 space-y-2 text-sm">
+              <ServiceRow
+                label="Authentication (Firebase)"
+                ready={isFirebaseAdminConfigured()}
+                fallback="Development sign-in"
+              />
+              <ServiceRow
+                label="File uploads (R2 / S3)"
+                ready={isStorageConfigured()}
+                fallback="Disabled"
+              />
+              <ServiceRow
+                label="Live updates (Pusher)"
+                ready={isRealtimeConfigured()}
+                fallback="Polling"
+              />
+            </dl>
+          </Card>
+        )}
       </div>
     </div>
   );
