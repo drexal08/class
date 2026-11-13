@@ -250,7 +250,7 @@ Claiming rules:
 
 ### Migration status (2026-11-13)
 
-Staged against the Neon project `neon-amethyst-candle` (`floral-dust-66359032`).
+Staged against the Neon project `neon-amethyst-candle` (`floral-king-64647468`).
 
 | Measure | Count |
 | :-- | --: |

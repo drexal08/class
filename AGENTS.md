@@ -67,9 +67,9 @@ cannot drift.
 
 ## Environment
 
-The database is Neon, project `neon-amethyst-candle` (`floral-dust-66359032`,
-`aws-us-east-1`). Get connection strings with the Neon CLI
-(`neon connection-string --project-id floral-dust-66359032 [--pooled]`) or the
+The database is Neon, project `neon-amethyst-candle` (`floral-king-64647468`,
+`aws-us-east-1`, PostgreSQL 18). Get connection strings with the Neon CLI
+(`neon connection-string --project-id floral-king-64647468 [--pooled]`) or the
 Neon MCP server; never commit them. `prisma.config.ts` accepts `DIRECT_URL`,
 `DATABASE_URL_UNPOOLED`, `POSTGRES_URL_NON_POOLING` or `DATABASE_URL` for
 migrations.

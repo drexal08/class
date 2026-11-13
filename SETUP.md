@@ -23,7 +23,8 @@ cp .env.example .env
 
 ### Option A — Neon (what this project uses)
 
-The production database is the Neon project `neon-amethyst-candle`.
+The production database is the Neon project `neon-amethyst-candle`
+(`floral-king-64647468`), running PostgreSQL 18.
 
 1. Sign in with the CLI: `neon login` (or install it first:
    `npm install -g neon@latest`).
@@ -31,13 +32,19 @@ The production database is the Neon project `neon-amethyst-candle`.
 
 ```bash
 # pooled — used by the app at runtime
-DATABASE_URL="$(neon connection-string --project-id floral-dust-66359032 --pooled)"
+DATABASE_URL="$(neon connection-string --project-id floral-king-64647468 --pooled)"
 # direct — used by Prisma Migrate
-DIRECT_URL="$(neon connection-string --project-id floral-dust-66359032)"
+DIRECT_URL="$(neon connection-string --project-id floral-king-64647468)"
 ```
 
 Vercel's Neon integration injects `DATABASE_URL` and `DATABASE_URL_UNPOOLED`,
 which `prisma.config.ts` already accepts, so no manual wiring is needed there.
+
+Neon locks a project to the major Postgres version it was created with, so
+moving to a different major version means creating a new project and copying
+the data across — there is no in-place upgrade. The Neon CLI refuses to create
+projects inside a Vercel-managed organization; `vercel install neon` does not
+have that restriction and provisions a project on the current major version.
 
 ### Option B — Supabase (free)
 
