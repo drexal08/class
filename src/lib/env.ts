@@ -87,6 +87,22 @@ export function isStorageConfigured(): boolean {
   return getStorageConfig() !== null;
 }
 
+/**
+ * Name of the configured storage provider, for the admin "This deployment"
+ * card. Neon hands out the AWS-standard variables, so it is recognised by the
+ * endpoint it injects rather than by an explicit opt-in.
+ */
+export function storageProviderLabel(): string {
+  const endpoint = process.env.S3_ENDPOINT;
+  if (endpoint) {
+    return endpoint.includes("r2.cloudflarestorage.com")
+      ? "Cloudflare R2"
+      : "AWS S3";
+  }
+  if (process.env.AWS_ENDPOINT_URL_S3) return "Neon Object Storage";
+  return "Object storage";
+}
+
 export function isRealtimeConfigured(): boolean {
   return Boolean(
     process.env.PUSHER_APP_ID &&

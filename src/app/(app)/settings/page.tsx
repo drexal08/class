@@ -10,6 +10,7 @@ import {
   isFirebaseAdminConfigured,
   isRealtimeConfigured,
   isStorageConfigured,
+  storageProviderLabel,
 } from "@/lib/env";
 import { ROLE_LABELS } from "@/lib/types";
 import { displayNameOf } from "@/lib/utils";
@@ -70,7 +71,7 @@ export default async function SettingsPage() {
                 fallback="Development sign-in"
               />
               <ServiceRow
-                label="File uploads (R2 / S3)"
+                label={`File uploads (${storageProviderLabel()})`}
                 ready={isStorageConfigured()}
                 fallback="Disabled"
               />
