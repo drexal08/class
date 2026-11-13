@@ -41,13 +41,50 @@ export function isDevAuthEnabledClient(): boolean {
   return process.env.NEXT_PUBLIC_AUTH_DEV_MODE === "true";
 }
 
+/**
+ * S3-compatible object storage settings.
+ *
+ * Two naming schemes are supported:
+ *
+ * - The app's own `S3_*` variables, for Cloudflare R2 and AWS S3.
+ * - The AWS-standard variables Neon Object Storage injects
+ *   (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`,
+ *   `AWS_REGION`), which `neon env pull` writes into `.env`.
+ *
+ * `S3_*` wins when both are present, so a deployment can point the app at a
+ * different bucket than the one Neon manages.
+ */
+export type StorageConfig = {
+  bucket: string;
+  endpoint: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+};
+
+export function getStorageConfig(): StorageConfig | null {
+  const accessKeyId =
+    process.env.S3_ACCESS_KEY_ID ?? process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey =
+    process.env.S3_SECRET_ACCESS_KEY ?? process.env.AWS_SECRET_ACCESS_KEY;
+  const endpoint = process.env.S3_ENDPOINT ?? process.env.AWS_ENDPOINT_URL_S3;
+  // Neon declares its buckets in `neon.ts`; `uploads` is the one this app
+  // uses, so it is the sensible default when only Neon credentials are set.
+  const bucket =
+    process.env.S3_BUCKET ?? (process.env.AWS_ENDPOINT_URL_S3 ? "uploads" : "");
+  if (!bucket || !accessKeyId || !secretAccessKey || !endpoint) return null;
+
+  return {
+    bucket,
+    endpoint,
+    accessKeyId,
+    secretAccessKey,
+    region: process.env.S3_REGION ?? process.env.AWS_REGION ?? "auto",
+  };
+}
+
 export function isStorageConfigured(): boolean {
-  return Boolean(
-    process.env.S3_BUCKET &&
-      process.env.S3_ACCESS_KEY_ID &&
-      process.env.S3_SECRET_ACCESS_KEY &&
-      process.env.S3_ENDPOINT,
-  );
+  return getStorageConfig() !== null;
 }
 
 export function isRealtimeConfigured(): boolean {

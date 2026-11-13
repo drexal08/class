@@ -6,7 +6,7 @@ import {
   MAX_UPLOAD_BYTES,
   isStorageConfigured,
 } from "@/lib/env";
-import { buildObjectKey, createUploadUrl, resolveFileUrl } from "@/lib/storage/r2";
+import { buildObjectKey, createUploadUrl, resolveFileUrl } from "@/lib/storage/s3";
 import { presignSchema } from "@/lib/validators";
 
 export const runtime = "nodejs";

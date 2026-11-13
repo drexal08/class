@@ -24,8 +24,8 @@ Full walkthrough in **[SETUP.md](./SETUP.md)**.
 | Framework | Next.js 16 (App Router, Server Actions), React 19, TypeScript strict |
 | Styling | Tailwind CSS v4, shadcn/ui, Lucide icons, Inter |
 | Auth | Firebase Auth (Google + Email/Password) + Firebase Admin session cookies |
-| Database | PostgreSQL (Supabase) via Prisma 7 with the `@prisma/adapter-pg` driver adapter |
-| Storage | Cloudflare R2 / AWS S3 via presigned `PUT` |
+| Database | PostgreSQL (Neon) via Prisma 7 with the `@prisma/adapter-pg` driver adapter |
+| Storage | Neon Object Storage (S3-compatible) / R2 / AWS S3 via presigned `PUT` |
 | Real-time | Pusher private channels, with a polling fallback |
 | Hosting | Vercel |
 
@@ -94,6 +94,7 @@ file is a public POST endpoint, so all reads live in `src/lib/data/*` behind
 | `npm run db:migrate-clabridge` | One-time Firestore → PostgreSQL CLA Bridge import |
 | `npm run db:seed` | Load demo data |
 | `npm run db:studio` | Prisma Studio |
+| `npm run storage:test` | Upload, list and read back an object in the Neon bucket |
 
 ## Design notes
 

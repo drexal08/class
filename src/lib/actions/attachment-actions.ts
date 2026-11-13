@@ -8,7 +8,7 @@ import {
   runAction,
 } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { deleteObject } from "@/lib/storage/r2";
+import { deleteObject } from "@/lib/storage/s3";
 import type { ActionState } from "@/lib/types";
 import { attachmentMetaSchema, firstIssue } from "@/lib/validators";
 

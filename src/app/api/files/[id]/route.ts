@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { AuthError, requireCourseAccess } from "@/lib/auth/guards";
 import { isStorageConfigured } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { resolveFileUrl } from "@/lib/storage/r2";
+import { resolveFileUrl } from "@/lib/storage/s3";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

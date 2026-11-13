@@ -74,7 +74,14 @@ Neon MCP server; never commit them. `prisma.config.ts` accepts `DIRECT_URL`,
 `DATABASE_URL_UNPOOLED`, `POSTGRES_URL_NON_POOLING` or `DATABASE_URL` for
 migrations.
 
-Only `DATABASE_URL` is required to boot. Firebase, Pusher, R2/S3 and the
-AcademicBridge import degrade gracefully when their variables are absent.
+Only `DATABASE_URL` is required to boot. Firebase, Pusher, object storage and
+the AcademicBridge import degrade gracefully when their variables are absent.
 `AUTH_DEV_MODE=true` signs in as a seeded user without Firebase credentials
 and is hard-disabled in production.
+
+File uploads live in Neon Object Storage, bucket `uploads`, declared in
+`neon.ts` and provisioned with `neon deploy`. `neon env pull` writes the
+AWS-standard `AWS_*` variables into `.env`; the app reads them when the
+`S3_*` ones are absent (`src/lib/env.ts` → `getStorageConfig`). The bucket
+is private, so reads go through the presigned URLs in
+`src/lib/storage/s3.ts`. `npm run storage:test` proves the round trip.

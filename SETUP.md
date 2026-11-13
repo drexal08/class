@@ -7,7 +7,7 @@ before anything useful happens; everything else degrades gracefully.
 | :-- | :-- | :-- |
 | PostgreSQL | **Yes** | Pages load, but no data — sign-in fails |
 | Firebase Auth | No | `AUTH_DEV_MODE` signs you in without a password |
-| Cloudflare R2 / S3 | No | Upload buttons render disabled with a tooltip |
+| Object storage (Neon / R2 / S3) | No | Upload buttons render disabled with a tooltip |
 | Pusher | No | Updates arrive on refresh instead of live |
 
 ---
@@ -108,9 +108,40 @@ seeded user with **no password**:
 The first sign-in creates the `User` row. The role chosen at sign-up is only
 honoured on creation — after that, only an admin can change roles.
 
-## File uploads (Cloudflare R2 or AWS S3)
+## File uploads (Neon Object Storage, Cloudflare R2 or AWS S3)
 
-R2 speaks the S3 API, so one set of variables covers both.
+Everything speaks the S3 API, so one client covers all three. This project uses
+**Neon Object Storage**: the bucket branches with the database, so a preview
+branch gets its own copy of the files.
+
+### Neon Object Storage (this project)
+
+```bash
+neon config add bucket uploads   # declares the bucket in neon.ts
+neon deploy                      # creates it and pulls the credentials
+neon env pull                    # writes AWS_* variables into .env
+```
+
+`neon deploy` writes the AWS-standard variables the SDKs expect:
+
+```ini
+AWS_ACCESS_KEY_ID="..."          # branch credential
+AWS_SECRET_ACCESS_KEY="..."
+AWS_ENDPOINT_URL_S3="https://br-<branch>.storage.<region>.aws.neon.tech"
+AWS_REGION="us-east-1"
+S3_BUCKET="uploads"              # optional: defaults to "uploads"
+```
+
+The app reads the `S3_*` variables first and falls back to the `AWS_*` ones, so
+a deployment can point at R2 or AWS S3 instead without touching the code.
+
+Check it end to end:
+
+```bash
+npm run storage:test   # upload a text file, list the bucket, read it back
+```
+
+### Cloudflare R2 or AWS S3
 
 ```ini
 S3_ENDPOINT="https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
