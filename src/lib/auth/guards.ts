@@ -32,7 +32,7 @@ export async function requireUser(): Promise<SessionUser> {
 
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") {
+  if (!user.isAdmin) {
     throw new AuthError("Only administrators can do that");
   }
   return user;
@@ -45,11 +45,11 @@ export async function requireCourseAccess(
   const user = await requireUser();
 
   // An admin can inspect any course without being enrolled in it.
-  if (user.role === "ADMIN") {
+  if (user.isAdmin) {
     return {
       user,
       courseId,
-      role: "ADMIN",
+      role: "TEACHER",
       isTeacher: true,
       muted: false,
     };

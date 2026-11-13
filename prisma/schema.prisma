@@ -21,7 +21,6 @@ generator client {
 // ---------------------------------------------------------------------------
 
 enum Role {
-  ADMIN
   TEACHER
   STUDENT
 }
@@ -76,6 +75,9 @@ model User {
   displayName String?
   avatarUrl   String?
   role        Role     @default(STUDENT)
+  /// Administrator rights are an overlay, not a third role: they unlock the
+  /// admin console without changing how the person is treated in classes.
+  isAdmin     Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -91,6 +93,7 @@ model User {
   claimedBridgeLegacy BridgeLegacyStudent? @relation("ClaimedBridgeLegacy")
 
   @@index([role])
+  @@index([isAdmin])
 }
 
 /// [+] CLA Bridge: the student's chosen school level. Students are locked to

@@ -18,7 +18,7 @@ export default async function AdminPage({
 }) {
   const user = await getCurrentUser();
   // A non-admin gets a 404 rather than a "forbidden" that confirms the page.
-  if (!user || user.role !== "ADMIN") notFound();
+  if (!user || !user.isAdmin) notFound();
 
   const { q } = await searchParams;
   const [stats, users] = await Promise.all([

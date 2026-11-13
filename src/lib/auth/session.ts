@@ -48,6 +48,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
         displayName: true,
         avatarUrl: true,
         role: true,
+        isAdmin: true,
       },
     });
   } catch (error) {

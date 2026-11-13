@@ -13,10 +13,10 @@ const LINKS = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
 ] as const;
 
-export function PrimaryNav({ role }: { role: Role }) {
+export function PrimaryNav({ role, isAdmin }: { role: Role; isAdmin: boolean }) {
   const pathname = usePathname();
   // The estimator is a student tool; admins keep access so they can inspect it.
-  const showBridge = role === "STUDENT" || role === "ADMIN";
+  const showBridge = role === "STUDENT" || isAdmin;
 
   return (
     <nav aria-label="Main" className="flex items-center gap-1 overflow-x-auto">

@@ -19,7 +19,7 @@ import { displayNameOf } from "@/lib/utils";
 
 type Member = {
   id: string;
-  role: "ADMIN" | "TEACHER" | "STUDENT";
+  role: "TEACHER" | "STUDENT";
   muted: boolean;
   user: {
     id: string;

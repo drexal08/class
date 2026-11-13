@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
   try {
     const user = await requireUser();
-    if (user.role === "TEACHER") {
+    if (user.role === "TEACHER" && !user.isAdmin) {
       return NextResponse.json(
         { error: "CLA Bridge is for students" },
         { status: 403 },
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       select: { level: true },
     });
 
-    if (user.role !== "ADMIN" && (!profile || profile.level !== level)) {
+    if (!user.isAdmin && (!profile || profile.level !== level)) {
       return NextResponse.json(
         { error: "Choose your school level first" },
         { status: 403 },

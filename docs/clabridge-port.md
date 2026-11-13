@@ -19,7 +19,7 @@ document records what moved where and which rules must not change.
   rejected by `setBridgeLevelAction` and the autosave route.
 - Admins can switch levels and may write any level.
 - Teachers are refused by both the page and the API. The navbar tab is only
-  rendered for `STUDENT` and `ADMIN`.
+  rendered for `STUDENT` and for administrators, whichever role they hold.
 - A student's level is resolved from their profile even if they hand-edit
   `?level=`.
 

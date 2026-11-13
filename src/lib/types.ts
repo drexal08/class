@@ -22,6 +22,8 @@ export type SessionUser = {
   displayName: string | null;
   avatarUrl: string | null;
   role: Role;
+  /** Administrator rights are an overlay on top of the role. */
+  isAdmin: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -57,7 +59,6 @@ export const ASSIGNMENT_LABELS: Record<AssignmentType, string> = {
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
-  ADMIN: "Admin",
   TEACHER: "Teacher",
   STUDENT: "Student",
 };

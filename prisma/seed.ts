@@ -51,12 +51,44 @@ async function main() {
     `dev_${Buffer.from(email).toString("hex").slice(0, 40)}`;
 
   const people = [
-    { email: "admin@school.edu", displayName: "Alex Mensah", role: "ADMIN" as const },
-    { email: "teacher@school.edu", displayName: "Ada Okonkwo", role: "TEACHER" as const },
-    { email: "amara@school.edu", displayName: "Amara Diallo", role: "STUDENT" as const },
-    { email: "ben@school.edu", displayName: "Ben Carter", role: "STUDENT" as const },
-    { email: "chidi@school.edu", displayName: "Chidi Eze", role: "STUDENT" as const },
-    { email: "dana@school.edu", displayName: "Dana Whitfield", role: "STUDENT" as const },
+    // Administrators keep their own role in the LMS; the flag only unlocks the
+    // admin console.
+    {
+      email: "admin@school.edu",
+      displayName: "Alex Mensah",
+      role: "TEACHER" as const,
+      isAdmin: true,
+    },
+    {
+      email: "teacher@school.edu",
+      displayName: "Ada Okonkwo",
+      role: "TEACHER" as const,
+      isAdmin: false,
+    },
+    {
+      email: "amara@school.edu",
+      displayName: "Amara Diallo",
+      role: "STUDENT" as const,
+      isAdmin: false,
+    },
+    {
+      email: "ben@school.edu",
+      displayName: "Ben Carter",
+      role: "STUDENT" as const,
+      isAdmin: false,
+    },
+    {
+      email: "chidi@school.edu",
+      displayName: "Chidi Eze",
+      role: "STUDENT" as const,
+      isAdmin: false,
+    },
+    {
+      email: "dana@school.edu",
+      displayName: "Dana Whitfield",
+      role: "STUDENT" as const,
+      isAdmin: false,
+    },
   ];
 
   const users = await Promise.all(
@@ -64,7 +96,11 @@ async function main() {
       prisma.user.upsert({
         where: { email: person.email },
         create: { id: devId(person.email), ...person },
-        update: { displayName: person.displayName, role: person.role },
+        update: {
+          displayName: person.displayName,
+          role: person.role,
+          isAdmin: person.isAdmin,
+        },
         select: { id: true, email: true, displayName: true, role: true },
       }),
     ),

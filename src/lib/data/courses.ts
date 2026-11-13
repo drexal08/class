@@ -111,7 +111,7 @@ export const getCourseForUser = cache(async (courseId: string) => {
   });
   if (!course) return null;
 
-  if (user.role === "ADMIN") {
+  if (user.isAdmin) {
     return { ...course, viewerRole: "TEACHER" as const, isTeacher: true };
   }
 
@@ -210,6 +210,7 @@ export async function listAllUsers(query?: string) {
       displayName: true,
       avatarUrl: true,
       role: true,
+      isAdmin: true,
       createdAt: true,
       _count: { select: { enrollments: true, createdCourses: true } },
     },

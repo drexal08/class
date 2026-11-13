@@ -20,7 +20,9 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   const courses = await listUserCourses();
 
-  const canCreate = user?.role === "TEACHER" || user?.role === "ADMIN";
+  // Creating classes is a teacher thing. Administrators keep their own role
+  // in the LMS, so the button follows the role and not the admin flag.
+  const canCreate = user?.role === "TEACHER";
   const teaching = courses.filter((course) => course.enrollmentRole !== "STUDENT");
   const enrolled = courses.filter((course) => course.enrollmentRole === "STUDENT");
 

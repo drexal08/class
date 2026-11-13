@@ -81,7 +81,7 @@ seeded user with **no password**:
 
 | Email | Role | State |
 | :-- | :-- | :-- |
-| `admin@school.edu` | Admin | Admin console access |
+| `admin@school.edu` | Teacher + admin | Admin console access |
 | `teacher@school.edu` | Teacher | Owns both demo classes |
 | `amara@school.edu` | Student | Work graded and returned |
 | `ben@school.edu` | Student | Work graded, not yet returned |

@@ -18,7 +18,7 @@ type CourseCardProps = {
     teacher: { displayName: string | null; email: string | null };
     _count?: { enrollments: number; assignments: number };
   };
-  role: "ADMIN" | "TEACHER" | "STUDENT";
+  role: "TEACHER" | "STUDENT";
 };
 
 /**

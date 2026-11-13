@@ -23,7 +23,7 @@ type Item = {
 
 export default async function TodoPage() {
   const user = await getCurrentUser();
-  const isTeacher = user?.role === "TEACHER" || user?.role === "ADMIN";
+  const isTeacher = user?.role === "TEACHER";
 
   return (
     <div className="container-feed py-8">

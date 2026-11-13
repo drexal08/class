@@ -1,10 +1,12 @@
 "use client";
 
 import { useTransition } from "react";
+import { Shield, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Select,
@@ -13,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { setUserRoleAction } from "@/lib/actions/auth-actions";
+import { setUserAdminAction, setUserRoleAction } from "@/lib/actions/auth-actions";
 import type { Role } from "@/generated/prisma/client";
 import { displayNameOf, formatDate } from "@/lib/utils";
 
@@ -23,6 +25,7 @@ type DirectoryUser = {
   displayName: string | null;
   avatarUrl: string | null;
   role: Role;
+  isAdmin: boolean;
   createdAt: Date;
   _count: { enrollments: number; createdCourses: number };
 };
@@ -55,6 +58,9 @@ export function UserDirectory({
               <th scope="col" className="px-5 py-3 font-medium">
                 Role
               </th>
+              <th scope="col" className="px-5 py-3 font-medium">
+                Admin console
+              </th>
             </tr>
           </thead>
 
@@ -73,6 +79,11 @@ export function UserDirectory({
                         {user.id === viewerId && (
                           <Badge variant="outline" className="ml-2">
                             You
+                          </Badge>
+                        )}
+                        {user.isAdmin && (
+                          <Badge variant="success" className="ml-2">
+                            Admin
                           </Badge>
                         )}
                       </p>
@@ -101,7 +112,7 @@ export function UserDirectory({
                       startTransition(async () => {
                         const result = await setUserRoleAction(
                           user.id,
-                          role as "ADMIN" | "TEACHER" | "STUDENT",
+                          role as "TEACHER" | "STUDENT",
                         );
                         if (result.error) toast.error(result.error);
                         else toast.success(`Role updated to ${role.toLowerCase()}`);
@@ -114,9 +125,32 @@ export function UserDirectory({
                     <SelectContent>
                       <SelectItem value="STUDENT">Student</SelectItem>
                       <SelectItem value="TEACHER">Teacher</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                </td>
+
+                <td className="px-5 py-3">
+                  <Button
+                    variant={user.isAdmin ? "secondary" : "outline"}
+                    size="sm"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        const next = !user.isAdmin;
+                        const result = await setUserAdminAction(user.id, next);
+                        if (result.error) toast.error(result.error);
+                        else
+                          toast.success(
+                            next
+                              ? "Admin access granted"
+                              : "Admin access removed",
+                          );
+                      })
+                    }
+                  >
+                    {user.isAdmin ? <ShieldOff /> : <Shield />}
+                    {user.isAdmin ? "Revoke" : "Grant"}
+                  </Button>
                 </td>
               </tr>
             ))}

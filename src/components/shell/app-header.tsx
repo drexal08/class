@@ -25,7 +25,7 @@ export async function AppHeader({ user }: { user: SessionUser }) {
           </span>
         </Link>
 
-        <PrimaryNav role={user.role} />
+        <PrimaryNav role={user.role} isAdmin={user.isAdmin} />
 
         <div className="ml-auto flex items-center gap-1">
           <NotificationsMenu items={items} unread={unread} />

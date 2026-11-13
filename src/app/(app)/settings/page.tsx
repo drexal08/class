@@ -37,9 +37,10 @@ export default async function SettingsPage() {
               <p className="truncate text-sm text-muted-foreground">
                 {user.email}
               </p>
-              <Badge variant="outline" className="mt-2">
-                {ROLE_LABELS[user.role]}
-              </Badge>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{ROLE_LABELS[user.role]}</Badge>
+                {user.isAdmin && <Badge variant="success">Admin</Badge>}
+              </div>
             </div>
           </div>
 
@@ -57,7 +58,7 @@ export default async function SettingsPage() {
           <ProfileForm displayName={user.displayName ?? ""} />
         </Card>
 
-        {user.role === "ADMIN" && (
+        {user.isAdmin && (
           <Card className="p-6">
             <h2 className="font-medium">This deployment</h2>
             <p className="mt-1 text-sm text-muted-foreground">

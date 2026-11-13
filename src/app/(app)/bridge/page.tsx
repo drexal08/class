@@ -101,7 +101,7 @@ export default async function BridgePage({
   if (!level) {
     return (
       <div className="container-page py-10">
-        <BridgeLevelPicker isAdmin={user.role === "ADMIN"} />
+        <BridgeLevelPicker isAdmin={user.isAdmin} />
       </div>
     );
   }
@@ -116,7 +116,7 @@ export default async function BridgePage({
       ownerName={ownerName}
       email={user.email}
       username={workspace.profile?.username ?? null}
-      isAdmin={user.role === "ADMIN"}
+      isAdmin={user.isAdmin}
       initial={{
         combinationCode: estimate?.combinationCode ?? "",
         marks: stringRecord(estimate?.marks),

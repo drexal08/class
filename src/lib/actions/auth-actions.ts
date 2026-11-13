@@ -49,16 +49,35 @@ export async function updateProfileAction(
  */
 export async function setUserRoleAction(
   userId: string,
-  role: "ADMIN" | "TEACHER" | "STUDENT",
+  role: "TEACHER" | "STUDENT",
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireAdmin();
+
+    await prisma.user.update({ where: { id: userId }, data: { role } });
+    revalidatePath("/admin");
+  });
+}
+
+/**
+ * Admin-only grant or revoke of administrator rights.
+ *
+ * Administrator rights are an overlay on the LMS role: the account keeps
+ * being a student or a teacher in every class. An administrator cannot drop
+ * their own access, which would leave the institution without a way in.
+ */
+export async function setUserAdminAction(
+  userId: string,
+  isAdmin: boolean,
 ): Promise<ActionState> {
   return runAction(async () => {
     const admin = await requireAdmin();
 
-    if (admin.id === userId && role !== "ADMIN") {
+    if (admin.id === userId && !isAdmin) {
       return { error: "You cannot remove your own admin access" };
     }
 
-    await prisma.user.update({ where: { id: userId }, data: { role } });
+    await prisma.user.update({ where: { id: userId }, data: { isAdmin } });
     revalidatePath("/admin");
   });
 }

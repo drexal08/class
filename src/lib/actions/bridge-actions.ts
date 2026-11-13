@@ -21,7 +21,7 @@ export async function setBridgeLevelAction(
 ): Promise<ActionState> {
   return runAction(async () => {
     const user = await requireUser();
-    if (user.role === "TEACHER") {
+    if (user.role === "TEACHER" && !user.isAdmin) {
       throw new AuthError("CLA Bridge is for students");
     }
 
@@ -38,7 +38,7 @@ export async function setBridgeLevelAction(
     if (
       existing &&
       existing.level !== parsed.data &&
-      user.role !== "ADMIN"
+      !user.isAdmin
     ) {
       return {
         error:

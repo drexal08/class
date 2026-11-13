@@ -48,6 +48,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
           </span>
           <span className="mt-1 text-xs font-normal text-muted-foreground">
             {ROLE_LABELS[user.role]}
+            {user.isAdmin ? " · Admin" : ""}
           </span>
         </DropdownMenuLabel>
 
@@ -60,7 +61,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
           </Link>
         </DropdownMenuItem>
 
-        {user.role === "ADMIN" && (
+        {user.isAdmin && (
           <DropdownMenuItem asChild>
             <Link href="/admin">
               <Shield />
