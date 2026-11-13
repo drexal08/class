@@ -223,6 +223,27 @@ student document or Firebase Auth), skips users that do not exist in LMS Core,
 and leaves a username unset if it is already taken. It upserts profiles and all
 three estimate levels, so it is safe to re-run.
 
+### Migration status (2026-11-13)
+
+Applied against the Neon project `neon-amethyst-candle` (`floral-dust-66359032`).
+The two apps use **different Firebase projects**, so a student's clabridge UID is
+not their LMS Core `User.id`; the email address is the only join key.
+
+| Measure | Count |
+| :-- | --: |
+| clabridge student documents | 28 |
+| matched an LMS Core user | 1 |
+| profiles written | 1 |
+| estimates written | 3 |
+| skipped — no LMS Core account | 26 |
+| skipped — no email anywhere | 1 |
+
+The unmatched students still have their data in Firestore. Once one of them has
+an LMS Core account with the same email, re-running the script picks them up, so
+the import can be repeated as accounts are created. Do **not** invent `User`
+rows keyed by clabridge UIDs: those UIDs belong to another Firebase project and
+could never sign in here.
+
 ## Deliberate differences
 
 - The green/gold clabridge branding is gone. The estimator uses LMS Core's

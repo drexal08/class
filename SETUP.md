@@ -21,7 +21,25 @@ cp .env.example .env
 
 ## 2. Point it at a database
 
-### Option A — Supabase (recommended, free)
+### Option A — Neon (what this project uses)
+
+The production database is the Neon project `neon-amethyst-candle`.
+
+1. Sign in with the CLI: `neon login` (or install it first:
+   `npm install -g neon@latest`).
+2. Copy both connection strings into `.env`:
+
+```bash
+# pooled — used by the app at runtime
+DATABASE_URL="$(neon connection-string --project-id floral-dust-66359032 --pooled)"
+# direct — used by Prisma Migrate
+DIRECT_URL="$(neon connection-string --project-id floral-dust-66359032)"
+```
+
+Vercel's Neon integration injects `DATABASE_URL` and `DATABASE_URL_UNPOOLED`,
+which `prisma.config.ts` already accepts, so no manual wiring is needed there.
+
+### Option B — Supabase (free)
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. **Project Settings → Database → Connection string → URI**.
@@ -35,7 +53,7 @@ DIRECT_URL="postgresql://postgres.abc:PASSWORD@aws-0-eu-west-1.pooler.supabase.c
 
 Prisma Migrate needs the direct connection; the app runtime uses the pooled one.
 
-### Option B — Local Postgres via Docker
+### Option C — Local Postgres via Docker
 
 ```bash
 docker compose up -d
