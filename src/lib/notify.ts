@@ -49,7 +49,9 @@ export async function notifyCourse(input: NotifyInput): Promise<void> {
 
     await Promise.all(
       targets.map((userId) =>
-        publish(userChannel(userId), "comment:new", { actorId: input.actorId }),
+        publish(userChannel(userId), "notification:new", {
+          actorId: input.actorId,
+        }),
       ),
     );
   } catch (error) {

@@ -42,7 +42,7 @@ export default async function ClassworkPage({
 
   return (
     <div className="container-feed py-6">
-      {course.isTeacher && !course.archived && (
+      {course.canManage && !course.archived && (
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <CreateAssignmentDialog courseId={course.id} topics={topics} />
           <CreateTopicForm courseId={course.id} />
@@ -54,7 +54,7 @@ export default async function ClassworkPage({
           icon={ClipboardList}
           title="No classwork yet"
           description={
-            course.isTeacher
+            course.canManage
               ? "Create an assignment, quiz, question or material. Group related work with topics."
               : "Assignments and material will appear here once your teacher posts them."
           }

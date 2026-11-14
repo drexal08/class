@@ -83,7 +83,7 @@ export default async function CourseLayout({
                   Archived
                 </Badge>
               )}
-              {course.isTeacher && (
+              {course.canManage && (
                 <ClassCode
                   code={course.code}
                   courseId={course.id}
@@ -93,7 +93,7 @@ export default async function CourseLayout({
             </div>
           </div>
 
-          <CourseNav courseId={course.id} isTeacher={course.isTeacher} />
+          <CourseNav courseId={course.id} canManage={course.canManage} />
         </div>
       </div>
 

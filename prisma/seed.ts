@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 
+import type { AssignmentType } from "../src/generated/prisma/client";
 import { PrismaClient } from "../src/generated/prisma/client";
 
 /**
@@ -10,6 +11,9 @@ import { PrismaClient } from "../src/generated/prisma/client";
  * Creates one teacher, four students and two classes, with submissions in every
  * SubmissionState so the gradebook, to-do list and grading view all have
  * something realistic to render.
+ *
+ * Every write is idempotent, so `npm run db:seed` can be run repeatedly without
+ * duplicating stream posts, classwork, submissions or notifications.
  *
  *   npm run db:seed
  */
@@ -167,115 +171,94 @@ async function main() {
   ]);
   await upsertTopic(literature.id, "Poetry", 0);
 
-  // Announcements with comments
-  const welcome = await prisma.announcement.create({
-    data: {
-      courseId: biology.id,
-      authorId: teacher.id,
-      content:
-        "Welcome to Biology 101. Read the syllabus in Classwork before Friday, and bring questions to our first session.",
-      pinned: true,
-    },
-    select: { id: true },
-  });
+  // Announcements with comments. Everything here is idempotent: running the
+  // seed twice must not duplicate stream posts, classwork or notifications.
+  const welcome = await upsertAnnouncement(
+    biology.id,
+    teacher.id,
+    "Welcome to Biology 101. Read the syllabus in Classwork before Friday, and bring questions to our first session.",
+    true,
+  );
 
-  await prisma.comment.createMany({
-    data: [
-      {
-        announcementId: welcome.id,
-        authorId: students[0].id,
-        content: "Is the lab notebook the spiral one from the list?",
-      },
-      {
-        announcementId: welcome.id,
-        authorId: teacher.id,
-        content: "Any bound notebook works — spiral is fine.",
-      },
+  await upsertAnnouncementComment(
+    welcome.id,
+    students[0].id,
+    "Is the lab notebook the spiral one from the list?",
+  );
+  await upsertAnnouncementComment(
+    welcome.id,
+    teacher.id,
+    "Any bound notebook works — spiral is fine.",
+  );
+
+  await upsertAnnouncement(
+    biology.id,
+    teacher.id,
+    "Reminder: the cell structure diagram is due Friday at 11:59pm. Late work is accepted but marked late.",
+  );
+
+  // Classwork with a rubric
+  const diagram = await upsertAssignment({
+    courseId: biology.id,
+    topicId: cells.id,
+    title: "Cell structure diagram",
+    description:
+      "Label a eukaryotic cell and write two sentences on each organelle's function.",
+    type: "ASSIGNMENT",
+    maxPoints: 20,
+    dueDate: daysFromNow(-2),
+    rubric: [
+      { title: "Accuracy of labels", points: 8 },
+      { title: "Explanation quality", points: 8 },
+      { title: "Presentation", points: 4 },
     ],
   });
 
-  await prisma.announcement.create({
-    data: {
-      courseId: biology.id,
-      authorId: teacher.id,
-      content:
-        "Reminder: the cell structure diagram is due Friday at 11:59pm. Late work is accepted but marked late.",
-    },
+  const quiz = await upsertAssignment({
+    courseId: biology.id,
+    topicId: genetics.id,
+    title: "Mendelian genetics quiz",
+    description: "Twenty questions on dominant and recessive inheritance.",
+    type: "QUIZ",
+    maxPoints: 50,
+    dueDate: daysFromNow(5),
   });
 
-  // Classwork with a rubric
-  const diagram = await prisma.assignment.create({
-    data: {
-      courseId: biology.id,
-      topicId: cells.id,
-      title: "Cell structure diagram",
-      description:
-        "Label a eukaryotic cell and write two sentences on each organelle's function.",
-      type: "ASSIGNMENT",
-      maxPoints: 20,
-      dueDate: daysFromNow(-2),
-      rubric: {
-        create: [
-          { title: "Accuracy of labels", points: 8, sortOrder: 0 },
-          { title: "Explanation quality", points: 8, sortOrder: 1 },
-          { title: "Presentation", points: 4, sortOrder: 2 },
-        ],
-      },
-    },
-    select: { id: true, rubric: { select: { id: true, points: true } } },
+  await upsertAssignment({
+    courseId: biology.id,
+    topicId: cells.id,
+    title: "Course syllabus",
+    description: "Everything we will cover this term, plus grading policy.",
+    type: "MATERIAL",
+    maxPoints: 0,
   });
 
-  const quiz = await prisma.assignment.create({
-    data: {
-      courseId: biology.id,
-      topicId: genetics.id,
-      title: "Mendelian genetics quiz",
-      description: "Twenty questions on dominant and recessive inheritance.",
-      type: "QUIZ",
-      maxPoints: 50,
-      dueDate: daysFromNow(5),
-    },
-    select: { id: true },
+  await upsertAssignment({
+    courseId: biology.id,
+    title: "What surprised you about osmosis?",
+    description: "Answer in a short paragraph — there is no wrong answer.",
+    type: "QUESTION",
+    maxPoints: 5,
+    dueDate: daysFromNow(9),
   });
 
-  await prisma.assignment.create({
-    data: {
-      courseId: biology.id,
-      topicId: cells.id,
-      title: "Course syllabus",
-      description: "Everything we will cover this term, plus grading policy.",
-      type: "MATERIAL",
-      maxPoints: 0,
-    },
-  });
-
-  await prisma.assignment.create({
-    data: {
-      courseId: biology.id,
-      title: "What surprised you about osmosis?",
-      description: "Answer in a short paragraph — there is no wrong answer.",
-      type: "QUESTION",
-      maxPoints: 5,
-      dueDate: daysFromNow(9),
-    },
-  });
-
-  await prisma.assignment.create({
-    data: {
-      courseId: literature.id,
-      title: "Close reading — 'The Second Coming'",
-      description: "Two pages on imagery and tone. Cite specific lines.",
-      type: "ASSIGNMENT",
-      maxPoints: 30,
-      dueDate: daysFromNow(3),
-    },
+  await upsertAssignment({
+    courseId: literature.id,
+    title: "Close reading — 'The Second Coming'",
+    description: "Two pages on imagery and tone. Cite specific lines.",
+    type: "ASSIGNMENT",
+    maxPoints: 30,
+    dueDate: daysFromNow(3),
   });
 
   // Submissions across every state, so each UI branch has data.
   const [amara, ben, chidi, dana] = students;
 
-  await prisma.submission.create({
-    data: {
+  const amaraSubmission = await prisma.submission.upsert({
+    where: {
+      assignmentId_studentId: { assignmentId: diagram.id, studentId: amara.id },
+    },
+    create: {
       assignmentId: diagram.id,
       studentId: amara.id,
       status: "RETURNED",
@@ -286,24 +269,50 @@ async function main() {
       submittedAt: daysFromNow(-3),
       gradedAt: daysFromNow(-1),
       returnedAt: daysFromNow(-1),
-      rubricScores: {
-        create: diagram.rubric.map((criterion, index) => ({
-          criterionId: criterion.id,
-          points: [8, 7, 3][index] ?? criterion.points,
-        })),
-      },
-      comments: {
-        create: {
-          authorId: teacher.id,
-          content: "Really strong work — see you at the study session.",
-          isPrivate: true,
-        },
-      },
     },
+    update: {
+      status: "RETURNED",
+      grade: 18,
+      feedback:
+        "Excellent labelling and clear explanations. Tighten the mitochondria paragraph next time.",
+      content: "Diagram attached, with organelle notes underneath each label.",
+      submittedAt: daysFromNow(-3),
+      gradedAt: daysFromNow(-1),
+      returnedAt: daysFromNow(-1),
+    },
+    select: { id: true },
   });
 
-  await prisma.submission.create({
-    data: {
+  await Promise.all(
+    diagram.rubric.map((criterion, index) =>
+      prisma.rubricScore.upsert({
+        where: {
+          submissionId_criterionId: {
+            submissionId: amaraSubmission.id,
+            criterionId: criterion.id,
+          },
+        },
+        create: {
+          submissionId: amaraSubmission.id,
+          criterionId: criterion.id,
+          points: [8, 7, 3][index] ?? criterion.points,
+        },
+        update: { points: [8, 7, 3][index] ?? criterion.points },
+      }),
+    ),
+  );
+
+  await upsertSubmissionComment(
+    amaraSubmission.id,
+    teacher.id,
+    "Really strong work — see you at the study session.",
+  );
+
+  await prisma.submission.upsert({
+    where: {
+      assignmentId_studentId: { assignmentId: diagram.id, studentId: ben.id },
+    },
+    create: {
       assignmentId: diagram.id,
       studentId: ben.id,
       status: "GRADED",
@@ -313,12 +322,28 @@ async function main() {
       submittedAt: daysFromNow(-3),
       gradedAt: daysFromNow(-1),
     },
+    update: {
+      status: "GRADED",
+      grade: 14,
+      feedback: "Good diagram. The explanations need more detail.",
+      content: "Here is my labelled diagram.",
+      submittedAt: daysFromNow(-3),
+      gradedAt: daysFromNow(-1),
+    },
   });
 
-  await prisma.submission.create({
-    data: {
+  await prisma.submission.upsert({
+    where: {
+      assignmentId_studentId: { assignmentId: diagram.id, studentId: chidi.id },
+    },
+    create: {
       assignmentId: diagram.id,
       studentId: chidi.id,
+      status: "LATE",
+      content: "Sorry this is late — I was unwell on Friday.",
+      submittedAt: daysFromNow(-1),
+    },
+    update: {
       status: "LATE",
       content: "Sorry this is late — I was unwell on Friday.",
       submittedAt: daysFromNow(-1),
@@ -328,26 +353,36 @@ async function main() {
   // Dana deliberately has no row: she should still appear in the grading view
   // as "Assigned", which is the missing-work case the roster join covers.
 
-  await prisma.submission.create({
-    data: {
+  await prisma.submission.upsert({
+    where: {
+      assignmentId_studentId: { assignmentId: quiz.id, studentId: amara.id },
+    },
+    create: {
       assignmentId: quiz.id,
       studentId: amara.id,
       status: "SUBMITTED",
       content: "Completed all twenty questions.",
       submittedAt: new Date(),
     },
+    update: {
+      status: "SUBMITTED",
+      content: "Completed all twenty questions.",
+      submittedAt: new Date(),
+    },
   });
 
-  await prisma.notification.createMany({
-    data: students.map((student) => ({
-      userId: student.id,
-      courseId: biology.id,
-      type: "ASSIGNMENT_CREATED" as const,
-      title: "New assignment: Mendelian genetics quiz",
-      body: "Due in five days",
-      linkPath: `/course/${biology.id}/classwork/${quiz.id}`,
-    })),
-  });
+  await Promise.all(
+    students.map((student) =>
+      upsertNotification({
+        userId: student.id,
+        courseId: biology.id,
+        type: "ASSIGNMENT_CREATED",
+        title: "New assignment: Mendelian genetics quiz",
+        body: "Due in five days",
+        linkPath: `/course/${biology.id}/classwork/${quiz.id}`,
+      }),
+    ),
+  );
 
   console.log(`
 Seed complete.
@@ -375,6 +410,138 @@ async function upsertTopic(courseId: string, name: string, sortOrder: number) {
 
   return prisma.topic.create({
     data: { courseId, name, sortOrder },
+    select: { id: true },
+  });
+}
+
+async function upsertAnnouncement(
+  courseId: string,
+  authorId: string,
+  content: string,
+  pinned = false,
+) {
+  const existing = await prisma.announcement.findFirst({
+    where: { courseId, authorId, content },
+    select: { id: true, pinned: true },
+  });
+  if (existing) {
+    if (pinned && !existing.pinned) {
+      await prisma.announcement.update({
+        where: { id: existing.id },
+        data: { pinned: true },
+      });
+    }
+    return existing;
+  }
+
+  return prisma.announcement.create({
+    data: { courseId, authorId, content, pinned },
+    select: { id: true, pinned: true },
+  });
+}
+
+async function upsertAnnouncementComment(
+  announcementId: string,
+  authorId: string,
+  content: string,
+) {
+  const existing = await prisma.comment.findFirst({
+    where: { announcementId, authorId, content },
+    select: { id: true },
+  });
+  if (existing) return existing;
+
+  return prisma.comment.create({
+    data: { announcementId, authorId, content },
+    select: { id: true },
+  });
+}
+
+async function upsertSubmissionComment(
+  submissionId: string,
+  authorId: string,
+  content: string,
+) {
+  const existing = await prisma.comment.findFirst({
+    where: { submissionId, authorId, content },
+    select: { id: true },
+  });
+  if (existing) return existing;
+
+  return prisma.comment.create({
+    data: { submissionId, authorId, content, isPrivate: true },
+    select: { id: true },
+  });
+}
+
+type AssignmentSeed = {
+  courseId: string;
+  topicId?: string;
+  title: string;
+  description?: string;
+  type: AssignmentType;
+  maxPoints: number;
+  dueDate?: Date;
+  rubric?: { title: string; points: number }[];
+};
+
+async function upsertAssignment(input: AssignmentSeed) {
+  const existing = await prisma.assignment.findFirst({
+    where: { courseId: input.courseId, title: input.title },
+    select: {
+      id: true,
+      rubric: { select: { id: true, points: true } },
+    },
+  });
+  if (existing) return existing;
+
+  return prisma.assignment.create({
+    data: {
+      courseId: input.courseId,
+      topicId: input.topicId ?? null,
+      title: input.title,
+      description: input.description ?? null,
+      type: input.type,
+      maxPoints: input.maxPoints,
+      dueDate: input.dueDate ?? null,
+      rubric: input.rubric
+        ? {
+            create: input.rubric.map((criterion, index) => ({
+              title: criterion.title,
+              points: criterion.points,
+              sortOrder: index,
+            })),
+          }
+        : undefined,
+    },
+    select: {
+      id: true,
+      rubric: { select: { id: true, points: true } },
+    },
+  });
+}
+
+async function upsertNotification(input: {
+  userId: string;
+  courseId: string;
+  type: "ASSIGNMENT_CREATED";
+  title: string;
+  body: string;
+  linkPath: string;
+}) {
+  const existing = await prisma.notification.findFirst({
+    where: {
+      userId: input.userId,
+      courseId: input.courseId,
+      type: input.type,
+      title: input.title,
+    },
+    select: { id: true },
+  });
+  if (existing) return existing;
+
+  return prisma.notification.create({
+    data: input,
     select: { id: true },
   });
 }

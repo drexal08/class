@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, PencilLine, SquareCheckBig } from "lucide-react";
 
 import { AttachmentList } from "@/components/shared/attachment-list";
+import { FileUploader } from "@/components/shared/file-uploader";
 import { CommentThread } from "@/components/stream/comment-thread";
 import { SubmitWorkPanel } from "@/components/submission/submit-work-panel";
 import { Badge } from "@/components/ui/badge";
@@ -11,9 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { getCurrentUser } from "@/lib/auth/session";
+import { ensureOwnSubmissionAction } from "@/lib/actions/submission-actions";
 import { getAssignment, getOwnSubmission } from "@/lib/data/classwork";
 import { getCourseForUser } from "@/lib/data/courses";
-import { listAssignmentComments } from "@/lib/data/stream";
+import {
+  listAssignmentComments,
+  listPrivateComments,
+} from "@/lib/data/stream";
 import { listSubmissionsForGrading } from "@/lib/data/grading";
 import { isStorageConfigured } from "@/lib/env";
 import { ASSIGNMENT_LABELS } from "@/lib/types";
@@ -51,13 +56,29 @@ export default async function AssignmentPage({
   if (!user || !course || !assignment) notFound();
 
   const isTeacher = course.isTeacher;
+  const gradeable = assignment.type !== "MATERIAL";
+  const uploadsEnabled = isStorageConfigured();
+  const canComment =
+    course.canManage ||
+    (course.viewerRole === "STUDENT" &&
+      course.postPolicy !== "ONLY_TEACHERS");
+
+  // Give a student a draft submission before they attach anything, so files
+  // can be uploaded before the first turn-in. Read-only or archived classes
+  // simply skip it.
+  if (!isTeacher && gradeable && !course.archived) {
+    await ensureOwnSubmissionAction(id, assignmentId).catch(() => undefined);
+  }
+
   const [comments, submission, grading] = await Promise.all([
     listAssignmentComments(id, assignmentId),
     isTeacher ? Promise.resolve(null) : getOwnSubmission(id, assignmentId),
     isTeacher ? listSubmissionsForGrading(id, assignmentId) : Promise.resolve(null),
   ]);
 
-  const gradeable = assignment.type !== "MATERIAL";
+  const privateComments = submission
+    ? await listPrivateComments(submission.id)
+    : [];
 
   return (
     <div className="container-page py-6">
@@ -74,6 +95,9 @@ export default async function AssignmentPage({
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline">{ASSIGNMENT_LABELS[assignment.type]}</Badge>
               {!assignment.published && <Badge variant="warning">Draft</Badge>}
+              {gradeable && !assignment.acceptingSubmissions && (
+                <Badge variant="outline">Closed for submissions</Badge>
+              )}
             </div>
 
             <h1 className="mt-3 text-2xl font-semibold tracking-tight">
@@ -97,7 +121,24 @@ export default async function AssignmentPage({
 
             {assignment.attachments.length > 0 && (
               <div className="mt-5">
-                <AttachmentList attachments={assignment.attachments} />
+                <AttachmentList
+                  attachments={assignment.attachments}
+                  courseId={id}
+                  viewerId={user.id}
+                  canManage={course.canManage}
+                />
+              </div>
+            )}
+
+            {course.canManage && !course.archived && uploadsEnabled && (
+              <div className="mt-3">
+                <FileUploader
+                  courseId={id}
+                  scope="assignment"
+                  targetId={assignment.id}
+                  enabled
+                  label="Attach classwork file"
+                />
               </div>
             )}
 
@@ -135,8 +176,8 @@ export default async function AssignmentPage({
               courseId={id}
               assignmentId={assignmentId}
               viewerId={user.id}
-              canModerate={isTeacher}
-              canComment={!course.archived}
+              canModerate={course.canManage}
+              canComment={canComment && !course.archived}
               emptyLabel="No class comments yet."
             />
           </Card>
@@ -164,12 +205,14 @@ export default async function AssignmentPage({
                 </Button>
               )}
 
-              <Button asChild variant="outline" className="mt-2 w-full">
-                <Link href={`/course/${id}/classwork/${assignmentId}/edit`}>
-                  <PencilLine />
-                  Edit
-                </Link>
-              </Button>
+              {course.canManage && (
+                <Button asChild variant="outline" className="mt-2 w-full">
+                  <Link href={`/course/${id}/classwork/${assignmentId}/edit`}>
+                    <PencilLine />
+                    Edit
+                  </Link>
+                </Button>
+              )}
             </Card>
           ) : gradeable ? (
             <SubmitWorkPanel
@@ -177,8 +220,11 @@ export default async function AssignmentPage({
               assignmentId={assignmentId}
               maxPoints={assignment.maxPoints}
               submission={submission}
+              privateComments={privateComments}
+              viewerId={user.id}
               uploadsEnabled={isStorageConfigured()}
               locked={course.archived}
+              acceptingSubmissions={assignment.acceptingSubmissions}
             />
           ) : (
             <Card className="p-5">

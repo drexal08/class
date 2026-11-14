@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Next's client router cache defaults to zero for dynamic routes, so every
+    // tab switch refetches the whole RSC payload. A short window makes moving
+    // back and forth between Stream, Classwork, People and Grades instant
+    // without serving stale data for long.
+    staleTimes: { dynamic: 30, static: 300 },
+
+    // lucide-react and date-fns are barrel packages; this rewrites the imports
+    // so a page only ships the icons and helpers it actually uses.
+    optimizePackageImports: ["lucide-react", "date-fns"],
+  },
+
   // Prisma and pg ship native binaries, so Node resolves them at runtime.
   //
   // firebase-admin is deliberately NOT listed. It depends on jwks-rsa, which

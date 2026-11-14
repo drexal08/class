@@ -29,6 +29,7 @@ export function PrimaryNav({ role, isAdmin }: { role: Role; isAdmin: boolean }) 
           <Link
             key={link.href}
             href={link.href}
+            prefetch
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MessageSquare, MoreVertical, Paperclip, Pin, PinOff, Trash2 } from "lucide-react";
+import { MessageSquare, MoreVertical, Pin, PinOff, Trash2 } from "lucide-react";
 
+import { AttachmentList } from "@/components/shared/attachment-list";
+import { FileUploader } from "@/components/shared/file-uploader";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import {
   CommentThread,
@@ -22,7 +24,7 @@ import {
   deleteAnnouncementAction,
   setAnnouncementPinnedAction,
 } from "@/lib/actions/stream-actions";
-import { displayNameOf, formatFileSize, formatRelative } from "@/lib/utils";
+import { displayNameOf, formatRelative } from "@/lib/utils";
 
 export type StreamPost = {
   id: string;
@@ -42,6 +44,7 @@ export type StreamPost = {
     url: string;
     mimeType: string | null;
     size: number | null;
+    uploadedById: string | null;
   }[];
   comments: ThreadComment[];
 };
@@ -50,14 +53,16 @@ export function AnnouncementCard({
   post,
   courseId,
   viewerId,
-  isTeacher,
+  canManage,
   canComment,
+  uploadsEnabled,
 }: {
   post: StreamPost;
   courseId: string;
   viewerId: string;
-  isTeacher: boolean;
+  canManage: boolean;
   canComment: boolean;
+  uploadsEnabled: boolean;
 }) {
   const [showComments, setShowComments] = useState(post.comments.length > 0);
   const [pending, startTransition] = useTransition();
@@ -82,7 +87,7 @@ export function AnnouncementCard({
           </div>
         </div>
 
-        {isTeacher && (
+        {canManage && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -131,31 +136,29 @@ export function AnnouncementCard({
       </p>
 
       {post.attachments.length > 0 && (
-        <ul className="mt-4 space-y-2">
-          {post.attachments.map((file) => (
-            <li key={file.id}>
-              <a
-                href={`/api/files/${file.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2.5 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-secondary"
-              >
-                <Paperclip
-                  className="size-4 shrink-0 text-muted-foreground"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                <span className="truncate">{file.name}</span>
-                {file.size ? (
-                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                    {formatFileSize(file.size)}
-                  </span>
-                ) : null}
-              </a>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-4">
+          <AttachmentList
+            attachments={post.attachments}
+            courseId={courseId}
+            viewerId={viewerId}
+            canManage={canManage}
+          />
+        </div>
       )}
+
+      {uploadsEnabled &&
+        (canManage || post.authorId === viewerId) &&
+        canComment && (
+          <div className="mt-3">
+            <FileUploader
+              courseId={courseId}
+              scope="announcement"
+              targetId={post.id}
+              enabled={uploadsEnabled}
+              label="Attach file"
+            />
+          </div>
+        )}
 
       <Separator className="my-4" />
 
@@ -165,7 +168,7 @@ export function AnnouncementCard({
           courseId={courseId}
           announcementId={post.id}
           viewerId={viewerId}
-          canModerate={isTeacher}
+          canModerate={canManage}
           canComment={canComment}
         />
       ) : (

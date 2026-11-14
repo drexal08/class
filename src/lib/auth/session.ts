@@ -58,20 +58,6 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   }
 });
 
-/** Resolves a course enrollment once per request, for the same reason. */
-export const getEnrollment = cache(
-  async (userId: string, courseId: string) => {
-    try {
-      return await prisma.enrollment.findUnique({
-        where: { userId_courseId: { userId, courseId } },
-        select: { id: true, role: true, muted: true, courseId: true },
-      });
-    } catch {
-      return null;
-    }
-  },
-);
-
 async function resolveUid(token: string): Promise<string | null> {
   if (isFirebaseAdminConfigured()) {
     const auth = await getAdminAuth();

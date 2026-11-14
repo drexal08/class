@@ -170,8 +170,11 @@ S3_REGION="auto"          # "auto" for R2, e.g. "us-east-1" for AWS
 S3_BUCKET="lms-uploads"
 S3_ACCESS_KEY_ID="..."
 S3_SECRET_ACCESS_KEY="..."
-S3_PUBLIC_URL="https://files.yourdomain.com"   # optional public domain
 ```
+
+Keep the bucket private. Files are served through `/api/files/[id]`, which
+checks course membership and redirects to a freshly signed URL; a public bucket
+URL would bypass both checks.
 
 **The bucket must allow `PUT` from your app's origin.** The browser uploads
 directly, so without CORS every upload fails. Neon sets this up for you;

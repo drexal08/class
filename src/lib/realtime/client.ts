@@ -92,5 +92,9 @@ export const COURSE_EVENTS = [
   "announcement:deleted",
   "comment:new",
   "assignment:new",
+  "submission:new",
   "submission:graded",
 ] as const;
+
+/** Events published on a user's own private channel. */
+export const USER_EVENTS = ["notification:new", "submission:graded"] as const;

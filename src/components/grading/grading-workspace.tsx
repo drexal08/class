@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { FileText, Send, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ensureSubmissionForStudentAction,
   gradeSubmissionAction,
   returnAllAction,
   returnSubmissionAction,
@@ -74,6 +76,7 @@ export function GradingWorkspace({
   rubric,
   rows,
   viewerId,
+  canManage,
 }: {
   courseId: string;
   assignmentId: string;
@@ -82,6 +85,8 @@ export function GradingWorkspace({
   rubric: Criterion[];
   rows: Row[];
   viewerId: string;
+  /** False for an administrator inspecting a class they do not teach. */
+  canManage: boolean;
 }) {
   const [selectedId, setSelectedId] = useState(rows[0]?.student.id ?? null);
   const [returning, startReturn] = useTransition();
@@ -171,7 +176,7 @@ export function GradingWorkspace({
           })}
         </ul>
 
-        {readyToReturn && (
+        {readyToReturn && canManage && (
           <div className="border-t border-border p-3">
             <Button
               variant="outline"
@@ -236,7 +241,12 @@ export function GradingWorkspace({
 
             {selected.submission && selected.submission.attachments.length > 0 && (
               <div className="mt-4">
-                <AttachmentList attachments={selected.submission.attachments} />
+                <AttachmentList
+                  attachments={selected.submission.attachments}
+                  courseId={courseId}
+                  viewerId={viewerId}
+                  canManage={canManage}
+                />
               </div>
             )}
 
@@ -250,7 +260,7 @@ export function GradingWorkspace({
                   />
                   <p className="mt-3 text-sm font-medium">Nothing turned in</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    You can still record a grade and leave feedback.
+                    This student has not opened the assignment yet.
                   </p>
                 </div>
               )}
@@ -264,10 +274,12 @@ export function GradingWorkspace({
           <GradePanel
             key={selected.student.id}
             courseId={courseId}
+            assignmentId={assignmentId}
             row={selected}
             maxPoints={maxPoints}
             rubric={rubric}
             viewerId={viewerId}
+            canManage={canManage}
           />
         )}
       </div>
@@ -277,22 +289,28 @@ export function GradingWorkspace({
 
 function GradePanel({
   courseId,
+  assignmentId,
   row,
   maxPoints,
   rubric,
   viewerId,
+  canManage,
 }: {
   courseId: string;
+  assignmentId: string;
   row: Row;
   maxPoints: number;
   rubric: Criterion[];
   viewerId: string;
+  canManage: boolean;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     gradeSubmissionAction,
     EMPTY_ACTION_STATE,
   );
   const [returning, startReturn] = useTransition();
+  const [creating, startCreating] = useTransition();
 
   const scores = useMemo(() => {
     const map = new Map<string, number>();
@@ -311,9 +329,34 @@ function GradePanel({
       <Card className="p-5">
         <h2 className="font-medium">Grade</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          This student has not opened the assignment yet, so there is nothing to
-          grade. A grade can be recorded once they turn something in.
+          This student has not opened the assignment, so there is no work to
+          show. You can still record a grade for missing work.
         </p>
+
+        {canManage && (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4 w-full"
+            disabled={creating}
+            onClick={() =>
+              startCreating(async () => {
+                const result = await ensureSubmissionForStudentAction(
+                  courseId,
+                  assignmentId,
+                  row.student.id,
+                );
+                if (result.error) {
+                  toast.error(result.error);
+                  return;
+                }
+                router.refresh();
+              })
+            }
+          >
+            {creating ? "Preparing…" : "Record a grade"}
+          </Button>
+        )}
       </Card>
     );
   }
@@ -404,29 +447,36 @@ function GradePanel({
             />
           </div>
 
-          <div className="flex gap-2">
-            <Button type="submit" className="flex-1" disabled={pending}>
-              {pending ? "Saving…" : "Save grade"}
-            </Button>
-
-            {row.status === "GRADED" && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={returning}
-                onClick={() =>
-                  startReturn(async () => {
-                    const result = await returnSubmissionAction(submissionId);
-                    if (result.error) toast.error(result.error);
-                    else toast.success("Returned to student");
-                  })
-                }
-              >
-                <Send strokeWidth={1.75} />
-                Return
+          {canManage ? (
+            <div className="flex gap-2">
+              <Button type="submit" className="flex-1" disabled={pending}>
+                {pending ? "Saving…" : "Save grade"}
               </Button>
-            )}
-          </div>
+
+              {row.status === "GRADED" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={returning}
+                  onClick={() =>
+                    startReturn(async () => {
+                      const result = await returnSubmissionAction(submissionId);
+                      if (result.error) toast.error(result.error);
+                      else toast.success("Returned to student");
+                    })
+                  }
+                >
+                  <Send strokeWidth={1.75} />
+                  Return
+                </Button>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Read-only inspection. Only a teacher of this class can change a
+              grade.
+            </p>
+          )}
 
           {row.status === "RETURNED" && (
             <p className="flex items-start gap-2 text-xs text-muted-foreground">
@@ -447,7 +497,8 @@ function GradePanel({
           courseId={courseId}
           submissionId={submissionId}
           viewerId={viewerId}
-          canModerate
+          canModerate={canManage}
+          canComment={canManage}
           placeholder="Add a private comment"
           emptyLabel="No private comments yet."
         />

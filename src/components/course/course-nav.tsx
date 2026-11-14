@@ -7,10 +7,10 @@ import { cn } from "@/lib/utils";
 
 export function CourseNav({
   courseId,
-  isTeacher,
+  canManage,
 }: {
   courseId: string;
-  isTeacher: boolean;
+  canManage: boolean;
 }) {
   const pathname = usePathname();
   const base = `/course/${courseId}`;
@@ -20,7 +20,7 @@ export function CourseNav({
     { href: `${base}/classwork`, label: "Classwork" },
     { href: `${base}/people`, label: "People" },
     { href: `${base}/grades`, label: "Grades" },
-    ...(isTeacher ? [{ href: `${base}/settings`, label: "Settings" }] : []),
+    ...(canManage ? [{ href: `${base}/settings`, label: "Settings" }] : []),
   ];
 
   return (
@@ -35,6 +35,10 @@ export function CourseNav({
           <Link
             key={tab.href}
             href={tab.href}
+            // The tabs are always in view, and these routes are dynamic, so
+            // the default prefetch only warms the loading shell. Prefetching
+            // the full route makes switching tabs feel instant.
+            prefetch
             aria-current={active ? "page" : undefined}
             className={cn(
               "border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",

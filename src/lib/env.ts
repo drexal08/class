@@ -32,7 +32,13 @@ export function isFirebaseClientConfigured(): boolean {
  */
 export function isDevAuthEnabled(): boolean {
   if (process.env.NODE_ENV === "production") return false;
-  return process.env.AUTH_DEV_MODE === "true";
+  // Accept the public mirror too: the browser can only see NEXT_PUBLIC_*, and
+  // requiring both variables to be set was an easy way to show a sign-in button
+  // that the server then rejected.
+  return (
+    process.env.AUTH_DEV_MODE === "true" ||
+    process.env.NEXT_PUBLIC_AUTH_DEV_MODE === "true"
+  );
 }
 
 /** Client-visible mirror of {@link isDevAuthEnabled}. */

@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import {
   AuthError,
   requireCourseAccess,
-  requireCourseTeacher,
+  requireCourseManager,
   requireUser,
   runAction,
 } from "@/lib/auth/guards";
@@ -158,7 +158,7 @@ export async function updateCourseAction(
     if (!parsed.success) return { error: firstIssue(parsed.error) };
 
     const { courseId, ...data } = parsed.data;
-    await requireCourseTeacher(courseId);
+    await requireCourseManager(courseId);
 
     await prisma.course.update({
       where: { id: courseId },
@@ -182,7 +182,7 @@ export async function setArchivedAction(
   archived: boolean,
 ): Promise<ActionState> {
   return runAction(async () => {
-    await requireCourseTeacher(courseId);
+    await requireCourseManager(courseId);
 
     await prisma.course.update({ where: { id: courseId }, data: { archived } });
 
@@ -195,7 +195,7 @@ export async function regenerateJoinCodeAction(
   courseId: string,
 ): Promise<ActionState> {
   return runAction(async () => {
-    await requireCourseTeacher(courseId);
+    await requireCourseManager(courseId);
 
     for (let attempt = 0; attempt < 6; attempt += 1) {
       try {
@@ -221,7 +221,7 @@ export async function removeMemberAction(
   userId: string,
 ): Promise<ActionState> {
   return runAction(async () => {
-    await requireCourseTeacher(courseId);
+    await requireCourseManager(courseId);
 
     const course = await prisma.course.findUnique({
       where: { id: courseId },
@@ -243,7 +243,7 @@ export async function setMutedAction(
   muted: boolean,
 ): Promise<ActionState> {
   return runAction(async () => {
-    await requireCourseTeacher(courseId);
+    await requireCourseManager(courseId);
 
     await prisma.enrollment.updateMany({
       where: { courseId, userId, role: "STUDENT" },
@@ -258,6 +258,11 @@ export async function setMutedAction(
 export async function leaveCourseAction(courseId: string): Promise<ActionState> {
   const result = await runAction(async () => {
     const context = await requireCourseAccess(courseId);
+
+    // An administrator inspecting a class is not a member of it.
+    if (!context.isEnrolled) {
+      throw new AuthError("You are not enrolled in this class");
+    }
 
     const course = await prisma.course.findUnique({
       where: { id: courseId },

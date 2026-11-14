@@ -289,6 +289,10 @@ model Assignment {
   type      AssignmentType @default(ASSIGNMENT)
   /// [+] §3 — teachers draft classwork before releasing it to students
   published Boolean        @default(true)
+  /// [+] Teachers can close an assignment to new turn-ins.
+  acceptingSubmissions Boolean @default(true)
+  /// [+] Whether work turned in after the due date is still accepted.
+  allowLateSubmissions  Boolean @default(true)
   updatedAt DateTime       @updatedAt
 
   attachments Attachment[]
@@ -338,7 +342,6 @@ model Submission {
   status       SubmissionState @default(ASSIGNED)
   grade        Float?
   feedback     String?
-  fileUrl      String?
   assignment   Assignment      @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   student      User            @relation(fields: [studentId], references: [id], onDelete: Cascade)
   submittedAt  DateTime?

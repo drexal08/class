@@ -5,6 +5,7 @@ import { cache } from "react";
 import { requireAdmin, requireCourseAccess } from "@/lib/auth/guards";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { resolveCourseAccess } from "@/lib/rules";
 
 /**
  * Reads live here rather than in a `"use server"` file.
@@ -106,25 +107,26 @@ export const getCourseForUser = cache(async (courseId: string) => {
       teacher: {
         select: { id: true, displayName: true, email: true, avatarUrl: true },
       },
+      enrollments: {
+        where: { userId: user.id },
+        select: { role: true },
+      },
       _count: { select: { enrollments: true } },
     },
   });
   if (!course) return null;
 
-  if (user.isAdmin) {
-    return { ...course, viewerRole: "TEACHER" as const, isTeacher: true };
-  }
+  const enrollment = course.enrollments[0] ?? null;
+  const access = resolveCourseAccess({ isAdmin: user.isAdmin, enrollment });
+  if (!access) return null;
 
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId: user.id, courseId } },
-    select: { role: true },
-  });
-  if (!enrollment) return null;
-
+  const { enrollments, ...rest } = course;
   return {
-    ...course,
-    viewerRole: enrollment.role,
-    isTeacher: enrollment.role === "TEACHER",
+    ...rest,
+    viewerRole: access.role,
+    isTeacher: access.isTeacher,
+    canManage: access.canManage,
+    isEnrolled: access.isEnrolled,
   };
 });
 

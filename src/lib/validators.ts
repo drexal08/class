@@ -164,6 +164,10 @@ export const createAssignmentSchema = z.object({
     }),
   topicId: optionalId,
   published: z.coerce.boolean().default(true),
+  // Parsed by the caller (see `updateAssignmentAction`) because a form's
+  // unchecked checkbox is absent rather than "false".
+  acceptingSubmissions: z.boolean().default(true),
+  allowLateSubmissions: z.boolean().default(true),
 });
 
 export const createTopicSchema = z.object({

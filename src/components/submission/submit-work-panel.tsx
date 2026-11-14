@@ -6,6 +6,10 @@ import { CheckCircle2, Undo2 } from "lucide-react";
 import { AttachmentList, type AttachmentSummary } from "@/components/shared/attachment-list";
 import { FileUploader } from "@/components/shared/file-uploader";
 import { FormError } from "@/components/shared/form-error";
+import {
+  CommentThread,
+  type ThreadComment,
+} from "@/components/stream/comment-thread";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,15 +43,21 @@ export function SubmitWorkPanel({
   assignmentId,
   maxPoints,
   submission,
+  privateComments,
+  viewerId,
   uploadsEnabled,
   locked,
+  acceptingSubmissions,
 }: {
   courseId: string;
   assignmentId: string;
   maxPoints: number;
   submission: Submission | null;
+  privateComments: ThreadComment[];
+  viewerId: string;
   uploadsEnabled: boolean;
   locked: boolean;
+  acceptingSubmissions: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     submitWorkAction,
@@ -58,7 +68,8 @@ export function SubmitWorkPanel({
   const status = submission?.status ?? "ASSIGNED";
   const handedIn = status !== "ASSIGNED";
   // Once a teacher has graded or returned work, it can no longer be recalled.
-  const canUnsubmit = status === "SUBMITTED" || status === "LATE";
+  const canUnsubmit =
+    (status === "SUBMITTED" || status === "LATE") && acceptingSubmissions;
 
   return (
     <Card className="p-5">
@@ -69,12 +80,21 @@ export function SubmitWorkPanel({
         </Badge>
       </div>
 
-      {submission?.grade !== null && submission?.grade !== undefined && (
-        <p className="mt-3 text-2xl font-semibold tabular-nums">
-          {submission.grade}
-          <span className="text-base font-normal text-muted-foreground">
-            /{maxPoints}
-          </span>
+      {status === "RETURNED" &&
+        submission?.grade !== null &&
+        submission?.grade !== undefined && (
+          <p className="mt-3 text-2xl font-semibold tabular-nums">
+            {submission.grade}
+            <span className="text-base font-normal text-muted-foreground">
+              /{maxPoints}
+            </span>
+          </p>
+        )}
+
+      {status === "GRADED" && (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Your teacher has marked this work. It will appear here once it is
+          returned to you.
         </p>
       )}
 
@@ -102,7 +122,14 @@ export function SubmitWorkPanel({
               <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Attached
               </h3>
-              <AttachmentList attachments={submission.attachments} />
+              <AttachmentList
+                attachments={submission.attachments}
+                courseId={courseId}
+                // Files on marked work are part of the record; hiding the
+                // control matches what the server enforces.
+                viewerId={canUnsubmit ? viewerId : undefined}
+                canManage={false}
+              />
             </div>
           )}
 
@@ -148,6 +175,38 @@ export function SubmitWorkPanel({
         <p className="mt-4 text-sm text-muted-foreground">
           This class is archived, so no new work can be turned in.
         </p>
+      ) : !acceptingSubmissions ? (
+        <div className="mt-4 space-y-3">
+          {submission?.content && (
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground">
+                Your response
+              </h3>
+              <p className="mt-1.5 rounded-md bg-secondary p-3 text-sm whitespace-pre-wrap">
+                {submission.content}
+              </p>
+            </div>
+          )}
+
+          {submission && submission.attachments.length > 0 && (
+            <div>
+              <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
+                Attached
+              </h3>
+              <AttachmentList
+                attachments={submission.attachments}
+                courseId={courseId}
+                viewerId={viewerId}
+                canManage={false}
+              />
+            </div>
+          )}
+
+          <p className="text-sm text-muted-foreground">
+            This assignment is closed for submissions. Your teacher can still
+            see anything you attached before it closed.
+          </p>
+        </div>
       ) : (
         <form action={formAction} className="mt-4 space-y-3">
           <input type="hidden" name="courseId" value={courseId} />
@@ -159,9 +218,24 @@ export function SubmitWorkPanel({
             name="content"
             rows={5}
             maxLength={20000}
+            defaultValue={submission?.content ?? ""}
             placeholder="Type your response, or attach a file below."
             aria-label="Your response"
           />
+
+          {submission && submission.attachments.length > 0 && (
+            <div>
+              <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
+                Attached
+              </h3>
+              <AttachmentList
+                attachments={submission.attachments}
+                courseId={courseId}
+                viewerId={viewerId}
+                canManage={false}
+              />
+            </div>
+          )}
 
           {submission && (
             <FileUploader
@@ -175,13 +249,26 @@ export function SubmitWorkPanel({
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Turning in…" : "Turn in"}
           </Button>
-
-          {!submission && (
-            <p className="text-xs text-muted-foreground">
-              Turn in once to attach files to this assignment.
-            </p>
-          )}
         </form>
+      )}
+
+      {submission && (
+        <div className="mt-5 border-t border-border pt-4">
+          <h3 className="text-sm font-medium">Private comments</h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Only you and your teacher can see these.
+          </p>
+          <CommentThread
+            comments={privateComments}
+            courseId={courseId}
+            submissionId={submission.id}
+            viewerId={viewerId}
+            canModerate={false}
+            canComment={!locked}
+            placeholder="Reply to your teacher"
+            emptyLabel="No private comments yet."
+          />
+        </div>
       )}
     </Card>
   );

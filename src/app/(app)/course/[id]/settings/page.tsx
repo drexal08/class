@@ -15,9 +15,9 @@ export default async function CourseSettingsPage({
   const { id } = await params;
 
   const course = await getCourseForUser(id);
-  // Settings are teacher-only; a student gets a 404 rather than a hint that the
-  // page exists.
-  if (!course || !course.isTeacher) notFound();
+  // Settings are teacher-only; a student or a read-only administrator gets a
+  // 404 rather than a hint that the page exists.
+  if (!course || !course.canManage) notFound();
 
   return (
     <div className="container-feed py-6">

@@ -4,12 +4,16 @@ import { revalidatePath } from "next/cache";
 
 import {
   AuthError,
-  requireCourseAccess,
-  requireCourseTeacher,
+  assertCanComment,
+  assertCanPost,
+  requireActiveCourse,
+  requireActiveCourseManager,
   runAction,
 } from "@/lib/auth/guards";
+import { notifyCourse } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { courseChannel, publish } from "@/lib/realtime/server";
+import { deleteObject } from "@/lib/storage/s3";
 import type { ActionState } from "@/lib/types";
 import { commentSchema, createAnnouncementSchema, firstIssue } from "@/lib/validators";
 
@@ -25,10 +29,11 @@ export async function createAnnouncementAction(
     if (!parsed.success) return { error: firstIssue(parsed.error) };
 
     const { courseId, content } = parsed.data;
-    const context = await requireCourseAccess(courseId);
+    const context = await requireActiveCourse(courseId);
     if (context.muted) {
       throw new AuthError("You have been muted in this class");
     }
+    assertCanPost(context);
 
     const announcement = await prisma.announcement.create({
       data: { courseId, content, authorId: context.user.id },
@@ -39,6 +44,14 @@ export async function createAnnouncementAction(
     await publish(courseChannel(courseId), "announcement:new", {
       actorId: context.user.id,
       id: announcement.id,
+    });
+    await notifyCourse({
+      courseId,
+      type: "ANNOUNCEMENT_POSTED",
+      title: `New post in ${context.courseName}`,
+      body: content.length > 140 ? `${content.slice(0, 140)}…` : content,
+      linkPath: `/course/${courseId}`,
+      actorId: context.user.id,
     });
   });
 }
@@ -55,7 +68,7 @@ export async function setAnnouncementPinnedAction(
   pinned: boolean,
 ): Promise<ActionState> {
   return runAction(async () => {
-    await requireCourseTeacher(courseId);
+    await requireActiveCourseManager(courseId);
 
     // Scoping the write by courseId is both the authorization check and the
     // fix for acting on another class's announcement.
@@ -73,11 +86,20 @@ export async function deleteAnnouncementAction(
   announcementId: string,
 ): Promise<ActionState> {
   return runAction(async () => {
-    const context = await requireCourseTeacher(courseId);
+    const context = await requireActiveCourseManager(courseId);
 
-    await prisma.announcement.deleteMany({
+    const announcement = await prisma.announcement.findFirst({
       where: { id: announcementId, courseId },
+      select: { attachments: { select: { key: true } } },
     });
+    if (!announcement) return { error: "That post no longer exists" };
+
+    await prisma.announcement.delete({ where: { id: announcementId } });
+    await Promise.all(
+      announcement.attachments.map((attachment) =>
+        deleteObject(attachment.key),
+      ),
+    );
 
     revalidatePath(`/course/${courseId}`);
     await publish(courseChannel(courseId), "announcement:deleted", {
@@ -105,18 +127,28 @@ export async function addCommentAction(
     const { courseId, content, announcementId, assignmentId, submissionId } =
       parsed.data;
 
-    const context = await requireCourseAccess(courseId);
-    if (context.muted) {
-      throw new AuthError("You have been muted in this class");
+    const context = await requireActiveCourse(courseId);
+
+    // Stream policy governs public class comments. A private comment between a
+    // student and their teacher is not a stream post, so a teacher-only class
+    // (or a muted student) must not block it.
+    if (!submissionId) {
+      if (context.muted) {
+        throw new AuthError("You have been muted in this class");
+      }
+      assertCanComment(context);
     }
 
     // Each target is verified to belong to this course before we write, so a
     // valid session cannot comment into a class it isn't a member of.
+    let announcementAuthorId: string | null = null;
     if (announcementId) {
-      const exists = await prisma.announcement.count({
+      const announcement = await prisma.announcement.findFirst({
         where: { id: announcementId, courseId },
+        select: { authorId: true },
       });
-      if (!exists) return { error: "That post no longer exists" };
+      if (!announcement) return { error: "That post no longer exists" };
+      announcementAuthorId = announcement.authorId;
     }
 
     if (assignmentId) {
@@ -126,6 +158,7 @@ export async function addCommentAction(
       if (!exists) return { error: "That assignment no longer exists" };
     }
 
+    let submissionStudentId: string | null = null;
     let isPrivate = false;
     if (submissionId) {
       const submission = await prisma.submission.findFirst({
@@ -135,11 +168,12 @@ export async function addCommentAction(
       if (!submission) return { error: "That submission no longer exists" };
 
       const isOwner = submission.studentId === context.user.id;
-      if (!isOwner && !context.isTeacher) {
+      if (!isOwner && !context.canManage) {
         throw new AuthError("You cannot comment on this submission");
       }
       // Comments on a submission are always private feedback.
       isPrivate = true;
+      submissionStudentId = submission.studentId;
     }
 
     await prisma.comment.create({
@@ -161,6 +195,30 @@ export async function addCommentAction(
     await publish(courseChannel(courseId), "comment:new", {
       actorId: context.user.id,
     });
+
+    // Tell the person who owns the thread, not the whole class.
+    const recipients = new Set<string>();
+    if (announcementAuthorId) recipients.add(announcementAuthorId);
+    if (assignmentId && context.teacherId) recipients.add(context.teacherId);
+    if (submissionId) {
+      if (submissionStudentId) recipients.add(submissionStudentId);
+      if (context.teacherId) recipients.add(context.teacherId);
+    }
+    recipients.delete(context.user.id);
+
+    if (recipients.size > 0) {
+      await notifyCourse({
+        courseId,
+        type: "COMMENT_ADDED",
+        title: `New comment in ${context.courseName}`,
+        body: content.length > 140 ? `${content.slice(0, 140)}…` : content,
+        linkPath: assignmentId
+          ? `/course/${courseId}/classwork/${assignmentId}`
+          : `/course/${courseId}`,
+        actorId: context.user.id,
+        recipientIds: [...recipients],
+      });
+    }
   });
 }
 
@@ -169,7 +227,7 @@ export async function deleteCommentAction(
   commentId: string,
 ): Promise<ActionState> {
   return runAction(async () => {
-    const context = await requireCourseAccess(courseId);
+    const context = await requireActiveCourse(courseId);
 
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
@@ -192,7 +250,7 @@ export async function deleteCommentAction(
     }
 
     // Authors delete their own comments; teachers moderate anyone's.
-    if (comment.authorId !== context.user.id && !context.isTeacher) {
+    if (comment.authorId !== context.user.id && !context.canManage) {
       throw new AuthError("You can only delete your own comments");
     }
 

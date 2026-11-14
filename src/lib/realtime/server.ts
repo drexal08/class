@@ -38,7 +38,8 @@ export type RealtimeEvent =
   | "comment:new"
   | "assignment:new"
   | "submission:new"
-  | "submission:graded";
+  | "submission:graded"
+  | "notification:new";
 
 /**
  * Payloads carry identifiers only, never content. Clients react by refetching

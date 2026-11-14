@@ -10,6 +10,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getCourseForUser } from "@/lib/data/courses";
 import { listAssignments } from "@/lib/data/classwork";
 import { listAnnouncements } from "@/lib/data/stream";
+import { isStorageConfigured } from "@/lib/env";
 import { formatDueDate, isOverdue } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -30,11 +31,14 @@ export default async function StreamPage({
   ]);
 
   // Module C moderation: the class post policy decides who may post or comment.
+  // An administrator inspecting an unenrolled class is read-only.
   const canPost =
-    course.isTeacher ||
-    course.postPolicy === "STUDENTS_CAN_POST_AND_COMMENT";
+    course.canManage ||
+    (course.viewerRole === "STUDENT" &&
+      course.postPolicy === "STUDENTS_CAN_POST_AND_COMMENT");
   const canComment =
-    course.isTeacher || course.postPolicy !== "ONLY_TEACHERS";
+    course.canManage ||
+    (course.viewerRole === "STUDENT" && course.postPolicy !== "ONLY_TEACHERS");
 
   const upcoming = classwork
     .filter((item) => item.dueDate && !isOverdue(item.dueDate))
@@ -68,7 +72,7 @@ export default async function StreamPage({
               icon={MessagesSquare}
               title="Nothing on the stream yet"
               description={
-                course.isTeacher
+                course.canManage
                   ? "Post an announcement to welcome your class and set expectations."
                   : "Announcements from your teacher will appear here."
               }
@@ -81,8 +85,9 @@ export default async function StreamPage({
                     post={post}
                     courseId={course.id}
                     viewerId={user.id}
-                    isTeacher={course.isTeacher}
+                    canManage={course.canManage}
                     canComment={canComment && !course.archived}
+                    uploadsEnabled={isStorageConfigured()}
                   />
                 </li>
               ))}

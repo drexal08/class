@@ -16,8 +16,8 @@ import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/lib/actions/notification-actions";
-import { formatRelative } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { USER_EVENTS, useRealtimeChannel } from "@/lib/realtime/client";
+import { cn, formatRelative } from "@/lib/utils";
 
 type NotificationItem = {
   id: string;
@@ -31,12 +31,20 @@ type NotificationItem = {
 export function NotificationsMenu({
   items,
   unread,
+  userId,
 }: {
   items: NotificationItem[];
   unread: number;
+  userId: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  // The bell is a persisted feed; this only tells it to re-render when a new
+  // row lands on this user's private channel.
+  useRealtimeChannel(`private-user-${userId}`, USER_EVENTS, () =>
+    router.refresh(),
+  );
 
   function open(item: NotificationItem) {
     startTransition(async () => {

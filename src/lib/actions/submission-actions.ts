@@ -4,18 +4,97 @@ import { revalidatePath } from "next/cache";
 
 import {
   AuthError,
-  requireCourseStudent,
-  requireSubmissionTeacher,
+  requireActiveCourseManager,
+  requireActiveCourseStudent,
+  requireSubmissionManager,
   runAction,
 } from "@/lib/auth/guards";
+import { notifyCourse } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { courseChannel, publish, userChannel } from "@/lib/realtime/server";
+import { canSubmitWork, rubricScoreError } from "@/lib/rules";
 import type { ActionState } from "@/lib/types";
 import {
   firstIssue,
   gradeSubmissionSchema,
   submitWorkSchema,
 } from "@/lib/validators";
+
+/**
+ * Makes sure a student has a submission row before they attach or type work.
+ *
+ * Attachments need a submission to belong to, and a draft row is also what
+ * lets the grading view distinguish "started but not turned in" from "never
+ * opened". Called from the assignment page; safe to call repeatedly.
+ */
+export async function ensureOwnSubmissionAction(
+  courseId: string,
+  assignmentId: string,
+): Promise<void> {
+  const context = await requireActiveCourseStudent(courseId);
+
+  const assignment = await prisma.assignment.findFirst({
+    where: { id: assignmentId, courseId, published: true },
+    select: { id: true, type: true },
+  });
+  if (!assignment || assignment.type === "MATERIAL") return;
+
+  await prisma.submission.upsert({
+    where: {
+      assignmentId_studentId: { assignmentId, studentId: context.user.id },
+    },
+    create: {
+      assignmentId,
+      studentId: context.user.id,
+      status: "ASSIGNED",
+    },
+    update: {},
+  });
+}
+
+/**
+ * Lets a teacher record a grade for work that was never turned in.
+ *
+ * The grading view builds its roster from enrollments, so a student with no
+ * submission row is visible but not gradeable. This creates the missing row on
+ * demand — the equivalent of marking a blank paper — instead of hiding the
+ * grade form.
+ */
+export async function ensureSubmissionForStudentAction(
+  courseId: string,
+  assignmentId: string,
+  studentId: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireActiveCourseManager(courseId);
+
+    const [assignment, enrollment] = await Promise.all([
+      prisma.assignment.findFirst({
+        where: { id: assignmentId, courseId },
+        select: { id: true, type: true },
+      }),
+      prisma.enrollment.findUnique({
+        where: { userId_courseId: { userId: studentId, courseId } },
+        select: { role: true },
+      }),
+    ]);
+
+    if (!assignment || assignment.type === "MATERIAL") {
+      throw new AuthError("That assignment no longer exists");
+    }
+    if (!enrollment || enrollment.role !== "STUDENT") {
+      throw new AuthError("That student is not enrolled in this class");
+    }
+
+    await prisma.submission.upsert({
+      where: { assignmentId_studentId: { assignmentId, studentId } },
+      create: { assignmentId, studentId, status: "ASSIGNED" },
+      update: {},
+    });
+
+    revalidatePath(`/course/${courseId}/classwork/${assignmentId}/grade`);
+  });
+}
 
 export async function submitWorkAction(
   _prev: ActionState,
@@ -30,21 +109,57 @@ export async function submitWorkAction(
     if (!parsed.success) return { error: firstIssue(parsed.error) };
 
     const { assignmentId, content } = parsed.data;
-    const context = await requireCourseStudent(courseId);
+    const context = await requireActiveCourseStudent(courseId);
 
     const assignment = await prisma.assignment.findFirst({
       where: { id: assignmentId, courseId, published: true },
-      select: { id: true, dueDate: true, type: true },
+      select: {
+        id: true,
+        dueDate: true,
+        type: true,
+        title: true,
+        acceptingSubmissions: true,
+        allowLateSubmissions: true,
+      },
     });
     if (!assignment) return { error: "That assignment no longer exists" };
     if (assignment.type === "MATERIAL") {
       return { error: "Material has nothing to turn in" };
     }
+    if (!assignment.acceptingSubmissions) {
+      return { error: "This assignment is not accepting submissions" };
+    }
+
+    const existing = await prisma.submission.findUnique({
+      where: {
+        assignmentId_studentId: { assignmentId, studentId: context.user.id },
+      },
+      select: {
+        id: true,
+        status: true,
+        _count: { select: { attachments: true } },
+      },
+    });
+
+    // Once marked, re-submitting would silently discard the grade.
+    if (existing && !canSubmitWork(existing.status)) {
+      return {
+        error:
+          "This work has already been marked, so it can no longer be turned in again.",
+      };
+    }
+
+    if (!content && (existing?._count.attachments ?? 0) === 0) {
+      return { error: "Add a response or attach a file before turning in" };
+    }
 
     const now = new Date();
     // LATE is a state in its own right, not a flag alongside SUBMITTED.
-    const status =
-      assignment.dueDate && now > assignment.dueDate ? "LATE" : "SUBMITTED";
+    const late = Boolean(assignment.dueDate && now > assignment.dueDate);
+    if (late && !assignment.allowLateSubmissions) {
+      return { error: "This assignment does not accept late work" };
+    }
+    const status = late ? "LATE" : "SUBMITTED";
 
     // Upsert on the (assignmentId, studentId) unique key — the previous
     // select-then-insert could double-write under a double click.
@@ -73,6 +188,20 @@ export async function submitWorkAction(
       actorId: context.user.id,
       id: assignmentId,
     });
+
+    const teachers = await prisma.enrollment.findMany({
+      where: { courseId, role: "TEACHER" },
+      select: { userId: true },
+    });
+
+    await notifyCourse({
+      courseId,
+      type: "WORK_SUBMITTED",
+      title: `${context.user.displayName ?? context.user.email} turned in ${assignment.title}`,
+      linkPath: `/course/${courseId}/classwork/${assignmentId}/grade`,
+      actorId: context.user.id,
+      recipientIds: teachers.map((teacher) => teacher.userId),
+    });
   });
 }
 
@@ -81,7 +210,18 @@ export async function unsubmitWorkAction(
   assignmentId: string,
 ): Promise<ActionState> {
   return runAction(async () => {
-    const context = await requireCourseStudent(courseId);
+    const context = await requireActiveCourseStudent(courseId);
+
+    const assignment = await prisma.assignment.findFirst({
+      where: { id: assignmentId, courseId },
+      select: { acceptingSubmissions: true },
+    });
+    if (!assignment) return { error: "That assignment no longer exists" };
+    // Withdrawing work from a closed assignment would strand the student
+    // unable to turn it back in.
+    if (!assignment.acceptingSubmissions) {
+      return { error: "This assignment is closed for submissions" };
+    }
 
     // Refuses once a teacher has graded or returned the work.
     const { count } = await prisma.submission.updateMany({
@@ -116,10 +256,14 @@ export async function gradeSubmissionAction(
     if (!parsed.success) return { error: firstIssue(parsed.error) };
 
     const { submissionId, grade, feedback } = parsed.data;
-    const context = await requireSubmissionTeacher(submissionId);
+    if (grade === undefined) {
+      return { error: "Enter a grade before saving" };
+    }
+
+    const context = await requireSubmissionManager(submissionId);
     const maxPoints = context.submission.assignment.maxPoints;
 
-    if (grade !== undefined && grade > maxPoints) {
+    if (grade > maxPoints) {
       return { error: `Grade cannot be more than ${maxPoints} points` };
     }
 
@@ -127,34 +271,67 @@ export async function gradeSubmissionAction(
     const criterionIds = formData.getAll("criterionId").map(String);
     const criterionPoints = formData.getAll("criterionPoints").map(String);
 
+    const entries = criterionIds
+      .map((criterionId, index) => {
+        const raw = criterionPoints[index];
+        if (!criterionId || raw === undefined || raw === "") return null;
+        return { criterionId, points: Number(raw) };
+      })
+      .filter((entry): entry is { criterionId: string; points: number } =>
+        entry !== null,
+      );
+
+    const rubricError = rubricScoreError(
+      context.submission.assignment.rubric,
+      entries,
+    );
+    if (rubricError) return { error: rubricError };
+
     await prisma.$transaction(async (tx) => {
       await tx.submission.update({
         where: { id: submissionId },
         data: {
-          grade: grade ?? null,
+          grade,
           feedback: feedback ?? null,
-          status: "GRADED",
+          // Editing a returned grade keeps it returned; the student has
+          // already seen this work come back.
+          status:
+            context.submission.status === "RETURNED" ? "RETURNED" : "GRADED",
           gradedAt: new Date(),
         },
       });
 
-      for (let index = 0; index < criterionIds.length; index += 1) {
-        const criterionId = criterionIds[index];
-        const raw = criterionPoints[index];
-        if (!criterionId || raw === undefined || raw === "") continue;
+      // Clearing a criterion in the form removes its old mark rather than
+      // leaving a stale score behind.
+      await tx.rubricScore.deleteMany({
+        where: {
+          submissionId,
+          criterionId: { notIn: entries.map((entry) => entry.criterionId) },
+        },
+      });
 
-        const points = Number(raw);
-        if (Number.isNaN(points)) continue;
-
+      for (const entry of entries) {
         await tx.rubricScore.upsert({
-          where: { submissionId_criterionId: { submissionId, criterionId } },
-          create: { submissionId, criterionId, points },
-          update: { points },
+          where: {
+            submissionId_criterionId: {
+              submissionId,
+              criterionId: entry.criterionId,
+            },
+          },
+          create: {
+            submissionId,
+            criterionId: entry.criterionId,
+            points: entry.points,
+          },
+          update: { points: entry.points },
         });
       }
     });
 
     revalidatePath(`/course/${context.courseId}/classwork`);
+    revalidatePath(
+      `/course/${context.courseId}/classwork/${context.submission.assignmentId}`,
+    );
     revalidatePath(
       `/course/${context.courseId}/classwork/${context.submission.assignmentId}/grade`,
     );
@@ -166,7 +343,14 @@ export async function returnSubmissionAction(
   submissionId: string,
 ): Promise<ActionState> {
   return runAction(async () => {
-    const context = await requireSubmissionTeacher(submissionId);
+    const context = await requireSubmissionManager(submissionId);
+
+    if (context.submission.status !== "GRADED") {
+      return { error: "Only graded work can be returned" };
+    }
+    if (context.submission.grade === null) {
+      return { error: "Save a grade before returning this work" };
+    }
 
     await prisma.submission.update({
       where: { id: submissionId },
@@ -174,6 +358,9 @@ export async function returnSubmissionAction(
     });
 
     revalidatePath(`/course/${context.courseId}/classwork`);
+    revalidatePath(
+      `/course/${context.courseId}/classwork/${context.submission.assignmentId}`,
+    );
     revalidatePath(
       `/course/${context.courseId}/classwork/${context.submission.assignmentId}/grade`,
     );
@@ -184,6 +371,16 @@ export async function returnSubmissionAction(
       actorId: context.user.id,
       id: context.submission.assignmentId,
     });
+
+    await notifyCourse({
+      courseId: context.courseId,
+      type: "GRADE_RETURNED",
+      title: `Work returned in ${context.courseName}`,
+      body: `${context.submission.assignment.title} is ready to review`,
+      linkPath: `/course/${context.courseId}/classwork/${context.submission.assignmentId}`,
+      actorId: context.user.id,
+      recipientIds: [context.submission.studentId],
+    });
   });
 }
 
@@ -193,24 +390,46 @@ export async function returnAllAction(
   assignmentId: string,
 ): Promise<ActionState> {
   return runAction(async () => {
+    const context = await requireActiveCourseManager(courseId);
+
     const graded = await prisma.submission.findMany({
       where: { assignmentId, status: "GRADED", assignment: { courseId } },
-      select: { id: true },
+      select: { id: true, studentId: true },
     });
 
     if (graded.length === 0) {
       throw new AuthError("There is nothing graded to return yet");
     }
 
-    // Authorised once, through the same guard the single-return path uses.
-    await requireSubmissionTeacher(graded[0].id);
-
     await prisma.submission.updateMany({
       where: { assignmentId, status: "GRADED", assignment: { courseId } },
       data: { status: "RETURNED", returnedAt: new Date() },
     });
 
+    revalidatePath(`/course/${courseId}/classwork/${assignmentId}`);
     revalidatePath(`/course/${courseId}/classwork/${assignmentId}/grade`);
     revalidatePath(`/course/${courseId}/grades`);
+
+    await Promise.all(
+      graded.map((submission) =>
+        publish(userChannel(submission.studentId), "submission:graded", {
+          actorId: context.user.id,
+          id: assignmentId,
+        }),
+      ),
+    );
+
+    await Promise.all(
+      graded.map((submission) =>
+        notifyCourse({
+          courseId,
+          type: "GRADE_RETURNED",
+          title: `Work returned in ${context.courseName}`,
+          linkPath: `/course/${courseId}/classwork/${assignmentId}`,
+          actorId: context.user.id,
+          recipientIds: [submission.studentId],
+        }),
+      ),
+    );
   });
 }

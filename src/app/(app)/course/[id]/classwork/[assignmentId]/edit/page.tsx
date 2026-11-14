@@ -19,7 +19,7 @@ export default async function EditAssignmentPage({
   const { id, assignmentId } = await params;
 
   const course = await getCourseForUser(id);
-  if (!course || !course.isTeacher) notFound();
+  if (!course || !course.canManage) notFound();
 
   const [assignment, topics] = await Promise.all([
     getAssignment(id, assignmentId),

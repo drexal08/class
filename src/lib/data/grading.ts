@@ -2,6 +2,7 @@ import "server-only";
 
 import { requireCourseAccess, requireCourseTeacher } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { visibleGradeForStudent } from "@/lib/rules";
 import type { SubmissionState } from "@/generated/prisma/client";
 
 const studentSelect = {
@@ -57,12 +58,18 @@ export async function listSubmissionsForGrading(
         grade: true,
         feedback: true,
         content: true,
-        fileUrl: true,
         submittedAt: true,
         gradedAt: true,
         returnedAt: true,
         attachments: {
-          select: { id: true, name: true, url: true, mimeType: true, size: true },
+          select: {
+            id: true,
+            name: true,
+            url: true,
+            mimeType: true,
+            size: true,
+            uploadedById: true,
+          },
         },
         rubricScores: { select: { criterionId: true, points: true } },
         // Private teacher↔student feedback, shown beside the grade box.
@@ -175,8 +182,16 @@ export async function getStudentGrades(courseId: string) {
     },
   });
 
-  return assignments.map(({ submissions, ...assignment }) => ({
-    ...assignment,
-    submission: submissions[0] ?? null,
-  }));
+  return assignments.map(({ submissions, ...assignment }) => {
+    const submission = submissions[0] ?? null;
+    return {
+      ...assignment,
+      submission: submission
+        ? {
+            ...submission,
+            grade: visibleGradeForStudent(submission.status, submission.grade),
+          }
+        : null,
+    };
+  });
 }

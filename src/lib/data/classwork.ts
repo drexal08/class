@@ -2,9 +2,20 @@ import "server-only";
 
 import { requireCourseAccess } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import {
+  visibleFeedbackForStudent,
+  visibleGradeForStudent,
+} from "@/lib/rules";
 
 const attachmentSelect = {
-  select: { id: true, name: true, url: true, mimeType: true, size: true },
+  select: {
+    id: true,
+    name: true,
+    url: true,
+    mimeType: true,
+    size: true,
+    uploadedById: true,
+  },
 } as const;
 
 export type ClassworkItem = Awaited<ReturnType<typeof listAssignments>>[number];
@@ -48,7 +59,7 @@ export async function listAssignments(courseId: string) {
       submissions: context.isTeacher
         ? {
             where: { status: { in: ["SUBMITTED", "LATE", "GRADED", "RETURNED"] } },
-            select: { id: true },
+            select: { id: true, status: true, grade: true },
           }
         : {
             where: { studentId: context.user.id },
@@ -59,21 +70,25 @@ export async function listAssignments(courseId: string) {
 
   return assignments.map((assignment) => {
     const { submissions, ...rest } = assignment;
+    // Both branches select the same columns, so the row type is stable; only
+    // the filter differs.
+    const mine = context.isTeacher ? null : (submissions[0] ?? null);
+
     return {
       ...rest,
       // For a teacher this is the turned-in count; for a student it is their
       // own submission, if any.
       turnedInCount: context.isTeacher ? submissions.length : 0,
-      mySubmission: context.isTeacher
-        ? null
-        : ((submissions[0] as
-            | { id: string; status: ClassworkStatus; grade: number | null }
-            | undefined) ?? null),
+      mySubmission: mine
+        ? {
+            ...mine,
+            // A saved grade is not visible until the teacher returns it.
+            grade: visibleGradeForStudent(mine.status, mine.grade),
+          }
+        : null,
     };
   });
 }
-
-type ClassworkStatus = "ASSIGNED" | "SUBMITTED" | "LATE" | "GRADED" | "RETURNED";
 
 /**
  * A single assignment, scoped to its course in the `where` clause so an id from
@@ -96,6 +111,8 @@ export async function getAssignment(courseId: string, assignmentId: string) {
       dueDate: true,
       maxPoints: true,
       published: true,
+      acceptingSubmissions: true,
+      allowLateSubmissions: true,
       createdAt: true,
       courseId: true,
       topic: { select: { id: true, name: true } },
@@ -122,7 +139,7 @@ export async function getAssignment(courseId: string, assignmentId: string) {
 export async function getOwnSubmission(courseId: string, assignmentId: string) {
   const context = await requireCourseAccess(courseId);
 
-  return prisma.submission.findFirst({
+  const submission = await prisma.submission.findFirst({
     where: {
       assignmentId,
       studentId: context.user.id,
@@ -134,7 +151,6 @@ export async function getOwnSubmission(courseId: string, assignmentId: string) {
       grade: true,
       feedback: true,
       content: true,
-      fileUrl: true,
       submittedAt: true,
       gradedAt: true,
       returnedAt: true,
@@ -144,4 +160,12 @@ export async function getOwnSubmission(courseId: string, assignmentId: string) {
       },
     },
   });
+  if (!submission) return null;
+
+  return {
+    ...submission,
+    // Marks and feedback stay hidden until the teacher returns the work.
+    grade: visibleGradeForStudent(submission.status, submission.grade),
+    feedback: visibleFeedbackForStudent(submission.status, submission.feedback),
+  };
 }

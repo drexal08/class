@@ -6,6 +6,7 @@ import { ChevronLeft } from "lucide-react";
 import { GradingWorkspace } from "@/components/grading/grading-workspace";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getCourseForUser } from "@/lib/data/courses";
 import { listSubmissionsForGrading } from "@/lib/data/grading";
 
 export const metadata: Metadata = {
@@ -21,8 +22,11 @@ export default async function GradePage({
 }) {
   const { id, assignmentId } = await params;
 
-  const user = await getCurrentUser();
-  if (!user) notFound();
+  const [user, course] = await Promise.all([
+    getCurrentUser(),
+    getCourseForUser(id),
+  ]);
+  if (!user || !course?.isTeacher) notFound();
 
   // Teacher-only; the guard inside throws for anyone else.
   const data = await listSubmissionsForGrading(id, assignmentId).catch(() => null);
@@ -63,6 +67,7 @@ export default async function GradePage({
         rubric={data.assignment.rubric}
         rows={data.rows}
         viewerId={user.id}
+        canManage={course.canManage}
       />
     </div>
   );

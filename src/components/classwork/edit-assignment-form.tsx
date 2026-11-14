@@ -24,6 +24,13 @@ import {
 } from "@/lib/actions/classwork-actions";
 import { EMPTY_ACTION_STATE, type ActionState } from "@/lib/types";
 
+type Criterion = {
+  id: string;
+  title: string;
+  description: string | null;
+  points: number;
+};
+
 type Assignment = {
   id: string;
   title: string;
@@ -32,7 +39,10 @@ type Assignment = {
   maxPoints: number;
   dueDate: Date | null;
   published: boolean;
+  acceptingSubmissions: boolean;
+  allowLateSubmissions: boolean;
   topic: { id: string; name: string } | null;
+  rubric: Criterion[];
 };
 
 export function EditAssignmentForm({
@@ -45,6 +55,7 @@ export function EditAssignmentForm({
   topics: { id: string; name: string }[];
 }) {
   const [type, setType] = useState(assignment.type);
+  const [criteria, setCriteria] = useState<Criterion[]>(assignment.rubric);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     updateAssignmentAction,
     EMPTY_ACTION_STATE,
@@ -150,6 +161,128 @@ export function EditAssignmentForm({
               </Select>
             </div>
           </div>
+
+          {isGraded && (
+            <div className="space-y-3 rounded-md border border-border p-4">
+              <div>
+                <p className="text-sm font-medium">Turn-in settings</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Closing turn-ins keeps the assignment visible but stops new
+                  submissions.
+                </p>
+              </div>
+
+              <label className="flex items-start gap-3 text-sm">
+                <input type="hidden" name="acceptingSubmissions" value="false" />
+                <input
+                  type="checkbox"
+                  name="acceptingSubmissions"
+                  value="true"
+                  defaultChecked={assignment.acceptingSubmissions}
+                  className="mt-0.5 size-4 rounded border-border accent-primary"
+                />
+                <span>
+                  Accept submissions
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Students can turn work in until you close it.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 text-sm">
+                <input type="hidden" name="allowLateSubmissions" value="false" />
+                <input
+                  type="checkbox"
+                  name="allowLateSubmissions"
+                  value="true"
+                  defaultChecked={assignment.allowLateSubmissions}
+                  className="mt-0.5 size-4 rounded border-border accent-primary"
+                />
+                <span>
+                  Accept late work
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Work turned in after the due date is marked as late.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
+          {isGraded && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Rubric</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Changing criteria replaces the rubric and clears marks
+                    already recorded against it.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCriteria((rows) => [
+                      ...rows,
+                      {
+                        id: `new-${rows.length}-${Date.now()}`,
+                        title: "",
+                        description: null,
+                        points: 10,
+                      },
+                    ])
+                  }
+                >
+                  Add criterion
+                </Button>
+              </div>
+
+              {criteria.length > 0 && (
+                <ul className="space-y-2">
+                  {criteria.map((criterion, index) => (
+                    <li key={criterion.id} className="flex items-center gap-2">
+                      <input
+                        type="hidden"
+                        name="rubricDescription"
+                        value={criterion.description ?? ""}
+                      />
+                      <Input
+                        name="rubricTitle"
+                        defaultValue={criterion.title}
+                        placeholder="e.g. Uses evidence"
+                        maxLength={160}
+                        className="flex-1"
+                        aria-label="Criterion name"
+                      />
+                      <Input
+                        name="rubricPoints"
+                        type="number"
+                        min={0}
+                        max={1000}
+                        defaultValue={criterion.points}
+                        className="w-24"
+                        aria-label="Criterion points"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove criterion"
+                        onClick={() =>
+                          setCriteria((rows) =>
+                            rows.filter((_, rowIndex) => rowIndex !== index),
+                          )
+                        }
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           <Button type="submit" disabled={pending}>
             {pending ? "Saving…" : "Save changes"}

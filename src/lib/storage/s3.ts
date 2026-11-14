@@ -91,13 +91,13 @@ export async function createUploadUrl(params: {
 }
 
 /**
- * Public URL when the bucket is served from a domain, otherwise a signed GET
- * valid for an hour.
+ * Always a signed GET valid for an hour.
+ *
+ * A public bucket URL would never expire, which would defeat the authorised
+ * `/api/files/[id]` route and leave student work readable by anyone holding a
+ * link. The bucket is expected to stay private.
  */
 export async function resolveFileUrl(key: string): Promise<string | null> {
-  const base = process.env.S3_PUBLIC_URL?.replace(/\/$/, "");
-  if (base) return `${base}/${key}`;
-
   const config = getStorageConfig();
   const s3 = getClient();
   if (!s3 || !config) return null;

@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import {
   AuthError,
-  requireCourseAccess,
+  requireActiveCourse,
   runAction,
+  type CourseContext,
 } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { attachmentKeyBelongsToCourse } from "@/lib/rules";
 import { deleteObject } from "@/lib/storage/s3";
 import type { ActionState } from "@/lib/types";
 import { attachmentMetaSchema, firstIssue } from "@/lib/validators";
@@ -29,12 +31,21 @@ export async function saveAttachmentAction(
   meta: unknown,
 ): Promise<ActionState> {
   return runAction(async () => {
-    const context = await requireCourseAccess(courseId);
+    const context = await requireActiveCourse(courseId);
 
     const parsed = attachmentMetaSchema.safeParse(meta);
     if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-    await assertTargetInCourse(courseId, target, context.user.id, context.isTeacher);
+    // The browser only ever sees a key the presign route minted for this
+    // course. Refusing anything else stops a crafted request from attaching a
+    // row to another class's object.
+    if (
+      !attachmentKeyBelongsToCourse(parsed.data.key, courseId, target.scope)
+    ) {
+      throw new AuthError("That upload does not belong to this class");
+    }
+
+    await assertTargetInCourse(context, target);
 
     // `key` is the durable reference. `url` is retained only as a record of
     // where the object was written — rendering always goes through
@@ -62,16 +73,41 @@ export async function deleteAttachmentAction(
   attachmentId: string,
 ): Promise<ActionState> {
   return runAction(async () => {
-    const context = await requireCourseAccess(courseId);
+    const context = await requireActiveCourse(courseId);
 
-    const attachment = await prisma.attachment.findUnique({
-      where: { id: attachmentId },
-      select: { id: true, key: true, uploadedById: true },
+    // Resolve the attachment *through* its parent and the parent's course.
+    // Looking it up by id alone let a teacher of one class delete another
+    // class's file.
+    const attachment = await prisma.attachment.findFirst({
+      where: {
+        id: attachmentId,
+        OR: [
+          { announcement: { courseId } },
+          { assignment: { courseId } },
+          { submission: { assignment: { courseId } } },
+        ],
+      },
+      select: {
+        id: true,
+        key: true,
+        uploadedById: true,
+        submission: { select: { status: true } },
+      },
     });
     if (!attachment) return { error: "That file no longer exists" };
 
-    if (attachment.uploadedById !== context.user.id && !context.isTeacher) {
+    if (attachment.uploadedById !== context.user.id && !context.canManage) {
       throw new AuthError("You can only remove files you uploaded");
+    }
+
+    // Once work is marked, the files it was marked on are part of the record.
+    if (
+      attachment.submission &&
+      !context.canManage &&
+      (attachment.submission.status === "GRADED" ||
+        attachment.submission.status === "RETURNED")
+    ) {
+      throw new AuthError("Marked work can no longer be changed");
     }
 
     await prisma.attachment.delete({ where: { id: attachmentId } });
@@ -83,36 +119,44 @@ export async function deleteAttachmentAction(
 
 /** Proves the attachment's parent really belongs to this course. */
 async function assertTargetInCourse(
-  courseId: string,
+  context: CourseContext,
   target: AttachmentTarget,
-  userId: string,
-  isTeacher: boolean,
 ): Promise<void> {
   if (target.scope === "announcement") {
-    const count = await prisma.announcement.count({
-      where: { id: target.id, courseId },
+    const announcement = await prisma.announcement.findFirst({
+      where: { id: target.id, courseId: context.courseId },
+      select: { authorId: true },
     });
-    if (!count) throw new AuthError("That post no longer exists");
+    if (!announcement) throw new AuthError("That post no longer exists");
+    if (announcement.authorId !== context.user.id && !context.canManage) {
+      throw new AuthError("You can only attach files to your own post");
+    }
     return;
   }
 
   if (target.scope === "assignment") {
-    if (!isTeacher) {
+    if (!context.canManage) {
       throw new AuthError("Only teachers can attach files to classwork");
     }
     const count = await prisma.assignment.count({
-      where: { id: target.id, courseId },
+      where: { id: target.id, courseId: context.courseId },
     });
     if (!count) throw new AuthError("That assignment no longer exists");
     return;
   }
 
   const submission = await prisma.submission.findFirst({
-    where: { id: target.id, assignment: { courseId } },
-    select: { studentId: true },
+    where: { id: target.id, assignment: { courseId: context.courseId } },
+    select: { studentId: true, status: true },
   });
   if (!submission) throw new AuthError("That submission no longer exists");
-  if (submission.studentId !== userId) {
+  if (submission.studentId !== context.user.id && !context.canManage) {
     throw new AuthError("You can only attach files to your own work");
+  }
+  if (
+    !context.canManage &&
+    (submission.status === "GRADED" || submission.status === "RETURNED")
+  ) {
+    throw new AuthError("Marked work can no longer be changed");
   }
 }

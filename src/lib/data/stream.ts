@@ -19,6 +19,7 @@ const attachmentSelect = {
     url: true,
     mimeType: true,
     size: true,
+    uploadedById: true,
   },
 } as const;
 

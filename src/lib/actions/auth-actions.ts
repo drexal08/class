@@ -1,18 +1,9 @@
 "use server";
 
-import { redirect } from "next/navigation";
-
 import { requireAdmin, requireUser, runAction } from "@/lib/auth/guards";
-import { destroySession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import type { ActionState } from "@/lib/types";
 import { revalidatePath } from "next/cache";
-
-/** Clears the session cookie and revokes the Firebase refresh tokens. */
-export async function logoutAction(): Promise<void> {
-  await destroySession();
-  redirect("/login");
-}
 
 /** Lets a user correct their own display name. */
 export async function updateProfileAction(

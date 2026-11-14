@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireCourseAccess } from "@/lib/auth/guards";
+import { requireActiveCourse } from "@/lib/auth/guards";
 import {
   ALLOWED_UPLOAD_TYPES,
   MAX_UPLOAD_BYTES,
@@ -44,13 +44,21 @@ export async function POST(request: Request) {
 
   const { courseId, fileName, mimeType, size, scope } = parsed.data;
 
+  let context;
   try {
-    // Only members of the course may upload into it.
-    await requireCourseAccess(courseId);
+    // Only members of an active course may upload into it, and the scope has to
+    // match what they are allowed to attach files to.
+    context = await requireActiveCourse(courseId);
   } catch {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   }
 
+  if (scope === "assignment" && !context.canManage) {
+    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+  }
+  if (scope === "submission" && !context.canManage && !context.isEnrolled) {
+    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+  }
   if (size > MAX_UPLOAD_BYTES) {
     return NextResponse.json(
       { error: `Files must be ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)} MB or smaller` },
