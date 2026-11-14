@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import type { App, ServiceAccount } from "firebase-admin/app";
 
 import {
+  mapWithConcurrency,
   readAllLegacyStudents,
   readLegacyStudentByEmail,
   stageLegacyStudent,
@@ -363,18 +364,26 @@ export async function pullAllLegacyStudents(): Promise<PullSummary> {
   summary.withoutAddress = withoutAddress.length;
 
   const table = getStageTable();
-  for (const student of students) {
-    try {
-      const outcome = await stageLegacyStudent(table, student);
-      if (outcome === "staged") summary.staged += 1;
-      else summary.claimed += 1;
-    } catch (error) {
-      summary.errors += 1;
-      console.error(
-        `[bridge] Could not stage the clabridge record for ${student.email}`,
-        error,
-      );
-    }
+  const outcomes = await mapWithConcurrency(
+    students,
+    8,
+    async (student) => {
+      try {
+        return await stageLegacyStudent(table, student);
+      } catch (error) {
+        summary.errors += 1;
+        console.error(
+          `[bridge] Could not stage the clabridge record for ${student.email}`,
+          error,
+        );
+        return "failed";
+      }
+    },
+  );
+
+  for (const outcome of outcomes) {
+    if (outcome === "staged") summary.staged += 1;
+    else if (outcome === "claimed") summary.claimed += 1;
   }
 
   return summary;

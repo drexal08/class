@@ -300,18 +300,53 @@ export async function readLegacyStudentByEmail(
 /** Reads every student the source knows about. */
 export async function readAllLegacyStudents(
   reader: LegacySourceReader,
+  concurrency = 8,
 ): Promise<{ students: LegacyStudent[]; withoutAddress: string[] }> {
   const ids = await reader.listStudentIds();
   const students: LegacyStudent[] = [];
   const withoutAddress: string[] = [];
 
-  for (const uid of ids) {
-    const student = await readLegacyStudentByUid(reader, uid);
+  const read = await mapWithConcurrency(
+    ids,
+    concurrency,
+    async (uid) => readLegacyStudentByUid(reader, uid),
+  );
+
+  for (const [index, student] of read.entries()) {
     if (student) students.push(student);
-    else withoutAddress.push(uid);
+    else withoutAddress.push(ids[index]);
   }
 
   return { students, withoutAddress };
+}
+
+/**
+ * Runs `task` over every item, a few at a time.
+ *
+ * The source has a few dozen students and each one costs a handful of reads.
+ * Doing them one after another is slow enough to run into a request timeout,
+ * and doing them all at once is rude to the source, so the work is spread
+ * over a fixed number of parallel tasks.
+ */
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  task: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  const limit = Math.max(1, Math.min(concurrency, items.length));
+  let next = 0;
+
+  const workers = Array.from({ length: limit }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await task(items[index]);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
 }
 
 /**
