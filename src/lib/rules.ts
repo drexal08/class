@@ -113,6 +113,29 @@ export function attachmentKeyBelongsToCourse(
   return key.startsWith(`courses/${courseId}/${scope}/`);
 }
 
+/**
+ * What to do with an account that is signing in.
+ *
+ * An account that already exists keeps the role it was given — a role is never
+ * changed on sign-in, or any signed-in person could promote themselves. A
+ * brand-new account is not created until the person says what it is: creating
+ * it silently as a student put every Google sign-up into the student
+ * experience, with no way to create a class and no way to change the role.
+ */
+export type AccountRoleDecision =
+  | { kind: "keep"; role: Role }
+  | { kind: "create"; role: Role }
+  | { kind: "ask" };
+
+export function accountRoleDecision(input: {
+  existingRole: Role | null;
+  intendedRole?: Role;
+}): AccountRoleDecision {
+  if (input.existingRole) return { kind: "keep", role: input.existingRole };
+  if (input.intendedRole) return { kind: "create", role: input.intendedRole };
+  return { kind: "ask" };
+}
+
 export type RubricCriterion = { id: string; points: number };
 export type RubricEntry = { criterionId: string; points: number };
 

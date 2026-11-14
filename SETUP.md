@@ -77,9 +77,22 @@ DIRECT_URL="postgresql://postgres:postgres@127.0.0.1:5432/lms_core"
 
 ```bash
 npm run db:migrate    # creates tables (prisma migrate dev)
-npm run db:seed       # optional: demo classes, students and grades
+SEED_ALLOW=true npm run db:seed   # optional: demo classes, students and grades
 npm run dev
 ```
+
+The seed refuses to run without `SEED_ALLOW=true`. It writes fictional users and
+classes, and this project's `.env` can point at the live database — so seeding
+has to be a deliberate act rather than a side effect of a habit.
+
+If demo data did reach a live database, remove it again:
+
+```bash
+npm run db:remove-demo              # dry run: lists what would be deleted
+npm run db:remove-demo -- --apply   # deletes the demo classes and users
+```
+
+The script refuses to delete a class that a real account has joined.
 
 Open <http://localhost:3000>.
 

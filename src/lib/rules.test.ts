@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  accountRoleDecision,
   attachmentKeyBelongsToCourse,
   canCommentOnStream,
   canPostOnStream,
@@ -224,6 +225,47 @@ describe("rubric scoring", () => {
         { criterionId: "criterion_a", points: Number.NaN },
       ]),
       "Rubric points must be numbers",
+    );
+  });
+});
+
+describe("accountRoleDecision", () => {
+  it("keeps the role an existing account already has", () => {
+    assert.deepEqual(
+      accountRoleDecision({ existingRole: "TEACHER" }),
+      { kind: "keep", role: "TEACHER" },
+    );
+    assert.deepEqual(
+      accountRoleDecision({ existingRole: "STUDENT" }),
+      { kind: "keep", role: "STUDENT" },
+    );
+  });
+
+  it("never changes the role of an existing account, even one that asks", () => {
+    assert.deepEqual(
+      accountRoleDecision({ existingRole: "STUDENT", intendedRole: "TEACHER" }),
+      { kind: "keep", role: "STUDENT" },
+    );
+  });
+
+  it("creates a new account with the role the person chose", () => {
+    assert.deepEqual(
+      accountRoleDecision({ existingRole: null, intendedRole: "TEACHER" }),
+      { kind: "create", role: "TEACHER" },
+    );
+    assert.deepEqual(
+      accountRoleDecision({ existingRole: null, intendedRole: "STUDENT" }),
+      { kind: "create", role: "STUDENT" },
+    );
+  });
+
+  it("asks a new account what it is instead of defaulting to student", () => {
+    assert.deepEqual(accountRoleDecision({ existingRole: null }), {
+      kind: "ask",
+    });
+    assert.deepEqual(
+      accountRoleDecision({ existingRole: null, intendedRole: undefined }),
+      { kind: "ask" },
     );
   });
 });

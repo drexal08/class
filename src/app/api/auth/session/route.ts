@@ -11,6 +11,7 @@ import {
 } from "@/lib/env";
 import { getAdminAuth } from "@/lib/firebase/admin";
 import { prisma } from "@/lib/prisma";
+import { accountRoleDecision } from "@/lib/rules";
 import { sessionSchema } from "@/lib/validators";
 
 export const runtime = "nodejs";
@@ -72,7 +73,10 @@ export async function DELETE() {
   return NextResponse.json({ ok: true });
 }
 
-async function signInWithFirebase(idToken: string, intendedRole?: "TEACHER" | "STUDENT") {
+async function signInWithFirebase(
+  idToken: string,
+  intendedRole?: "TEACHER" | "STUDENT",
+) {
   const auth = await getAdminAuth();
   if (!auth) {
     return NextResponse.json(
@@ -93,16 +97,58 @@ async function signInWithFirebase(idToken: string, intendedRole?: "TEACHER" | "S
     );
   }
 
-  const user = await upsertUser({
-    id: decoded.uid,
-    email: decoded.email ?? "",
-    displayName: (decoded.name as string | undefined) ?? null,
-    avatarUrl: (decoded.picture as string | undefined) ?? null,
+  const email = decoded.email ?? "";
+  const displayName = (decoded.name as string | undefined) ?? null;
+  const avatarUrl = (decoded.picture as string | undefined) ?? null;
+
+  const existing = await prisma.user.findUnique({
+    where: { id: decoded.uid },
+    select: { id: true, role: true },
+  });
+
+  const decision = accountRoleDecision({
+    existingRole: existing?.role ?? null,
     intendedRole,
   });
 
+  // A brand-new account has to say what it is before it is created. Creating
+  // it silently as a student put every Google sign-up into the student
+  // experience — a teacher who clicked "Continue with Google" ended up with
+  // no way to create a class and no way to change their role.
+  if (decision.kind === "ask") {
+    return askForRole(email || null, displayName);
+  }
+
+  if (decision.kind === "create") {
+    const created = await prisma.user.create({
+      data: {
+        id: decoded.uid,
+        email,
+        displayName,
+        avatarUrl,
+        role: decision.role,
+      },
+      select: { id: true, role: true },
+    });
+
+    await createFirebaseSession(idToken);
+    return NextResponse.json({ ok: true, role: created.role });
+  }
+
+  // An account that already exists keeps the role it was given. Honouring a
+  // role on update would let any signed-in user promote themselves.
+  const updated = await prisma.user.update({
+    where: { id: existing!.id },
+    data: {
+      email,
+      displayName: displayName ?? undefined,
+      avatarUrl: avatarUrl ?? undefined,
+    },
+    select: { id: true, role: true },
+  });
+
   await createFirebaseSession(idToken);
-  return NextResponse.json({ ok: true, role: user.role });
+  return NextResponse.json({ ok: true, role: updated.role });
 }
 
 async function signInForDevelopment(
@@ -118,49 +164,51 @@ async function signInForDevelopment(
     select: { id: true, role: true },
   });
 
-  const user = existing
-    ? await prisma.user.update({
-        where: { id: existing.id },
-        data: { displayName: displayName ?? undefined },
-        select: { id: true, role: true },
-      })
-    : await upsertUser({
+  const decision = accountRoleDecision({
+    existingRole: existing?.role ?? null,
+    intendedRole,
+  });
+
+  if (decision.kind === "ask") {
+    return askForRole(email, displayName ?? null);
+  }
+
+  if (decision.kind === "create") {
+    const created = await prisma.user.create({
+      data: {
         id,
         email,
         displayName: displayName ?? email.split("@")[0],
         avatarUrl: null,
-        intendedRole,
-      });
+        role: decision.role,
+      },
+      select: { id: true, role: true },
+    });
 
-  await createDevSession(user.id);
-  return NextResponse.json({ ok: true, role: user.role, dev: true });
+    await createDevSession(created.id);
+    return NextResponse.json({ ok: true, role: created.role, dev: true });
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: existing!.id },
+    data: { displayName: displayName ?? undefined },
+    select: { id: true, role: true },
+  });
+
+  await createDevSession(updated.id);
+  return NextResponse.json({ ok: true, role: updated.role, dev: true });
 }
 
 /**
- * `role` is set only when the account is created. Honouring it on update would
- * let any signed-in user POST themselves to TEACHER.
+ * Tells the browser that the account is new and needs to be told what it is.
+ *
+ * No user row is created and no session is minted: the account only comes into
+ * existence once the person answers, so there is never a half-created student
+ * to fix up by hand.
  */
-async function upsertUser(input: {
-  id: string;
-  email: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  intendedRole?: "TEACHER" | "STUDENT";
-}) {
-  return prisma.user.upsert({
-    where: { id: input.id },
-    create: {
-      id: input.id,
-      email: input.email,
-      displayName: input.displayName,
-      avatarUrl: input.avatarUrl,
-      role: input.intendedRole ?? "STUDENT",
-    },
-    update: {
-      email: input.email,
-      displayName: input.displayName ?? undefined,
-      avatarUrl: input.avatarUrl ?? undefined,
-    },
-    select: { id: true, role: true },
-  });
+function askForRole(email: string | null, displayName: string | null) {
+  return NextResponse.json(
+    { needsRole: true, email, displayName },
+    { status: 409 },
+  );
 }

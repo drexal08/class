@@ -3,13 +3,15 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, GraduationCap, Loader2, School } from "lucide-react";
 
 import {
   devSignInAction,
   googleAction,
+  goTo,
   signInAction,
   signUpAction,
+  type AuthOutcome,
 } from "@/components/auth/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +26,10 @@ import {
 import { cn } from "@/lib/utils";
 
 type Mode = "signin" | "signup";
+type Role = "TEACHER" | "STUDENT";
+
+/** The server's "this is a new account, what is it?" answer. */
+type RoleQuestion = Extract<AuthOutcome, { status: "needs-role" }>;
 
 export function AuthForm({
   mode,
@@ -39,17 +45,43 @@ export function AuthForm({
 
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [role, setRole] = useState<Role | "">("");
+  const [roleQuestion, setRoleQuestion] = useState<RoleQuestion | null>(null);
   const isSignUp = mode === "signup";
 
   // Firebase is the real path; dev sign-in exists so the app is usable locally
   // before anyone has set up a Firebase project.
   const useDevMode = !firebaseEnabled && devEnabled;
 
-  function run(action: () => Promise<{ error?: string }>) {
+  function handle(outcome: AuthOutcome) {
+    if (outcome.status === "signed-in") {
+      goTo(next);
+      return;
+    }
+    if (outcome.status === "needs-role") {
+      setRoleQuestion(outcome);
+      setError(null);
+      return;
+    }
+    setError(outcome.error);
+  }
+
+  function run(action: () => Promise<AuthOutcome>) {
     setError(null);
     startTransition(async () => {
-      const result = await action();
-      if (result.error) setError(result.error);
+      handle(await action());
+    });
+  }
+
+  function answerRole(choice: Role) {
+    if (!roleQuestion) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        handle(await roleQuestion.retry(choice));
+      } catch {
+        setError("Could not finish signing in. Please try again.");
+      }
     });
   }
 
@@ -58,12 +90,65 @@ export function AuthForm({
     const formData = new FormData(event.currentTarget);
 
     run(() => {
-      if (useDevMode) return devSignInAction(next, formData);
-      return isSignUp ? signUpAction(next, formData) : signInAction(next, formData);
+      if (useDevMode) return devSignInAction(formData);
+      return isSignUp ? signUpAction(formData) : signInAction(formData);
     });
   }
 
   const unavailable = !firebaseEnabled && !devEnabled;
+
+  // A new account has to be told what it is before it is created. The sign-up
+  // form asks directly; a Google sign-in is asked by the server, which is the
+  // only place that knows whether the account is new.
+  if (roleQuestion) {
+    return (
+      <div className="w-full max-w-sm">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          One quick question
+        </h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {roleQuestion.displayName
+            ? `Welcome, ${roleQuestion.displayName}. `
+            : "Welcome. "}
+          Are you joining a class, or do you want to teach one?
+        </p>
+
+        <div className="mt-6 space-y-3">
+          <RoleChoice
+            icon={GraduationCap}
+            title="I'm a student"
+            description="Join with a class code your teacher gives you."
+            disabled={pending}
+            onClick={() => answerRole("STUDENT")}
+          />
+          <RoleChoice
+            icon={School}
+            title="I'm a teacher"
+            description="Create classes, invite students and set classwork."
+            disabled={pending}
+            onClick={() => answerRole("TEACHER")}
+          />
+        </div>
+
+        {error && (
+          <Alert role="alert">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{error}</span>
+          </Alert>
+        )}
+
+        <Button
+          type="button"
+          variant="ghost"
+          className="mt-4"
+          disabled={pending}
+          onClick={() => setRoleQuestion(null)}
+        >
+          Back
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-sm">
@@ -108,11 +193,7 @@ export function AuthForm({
             variant="outline"
             className="w-full"
             disabled={pending}
-            onClick={() =>
-              run(() =>
-                googleAction(next, isSignUp ? getRole() : undefined),
-              )
-            }
+            onClick={() => run(() => googleAction(role || undefined))}
           >
             <GoogleMark />
             Continue with Google
@@ -175,12 +256,16 @@ export function AuthForm({
           </div>
         )}
 
-        {(isSignUp || useDevMode) && (
+        {isSignUp && (
           <div className="space-y-2">
             <Label htmlFor="role">I am a</Label>
-            <Select name="role" defaultValue="STUDENT">
+            <Select
+              name="role"
+              value={role}
+              onValueChange={(value) => setRole(value as Role)}
+            >
               <SelectTrigger id="role" disabled={unavailable || pending}>
-                <SelectValue />
+                <SelectValue placeholder="Choose one" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="STUDENT">Student</SelectItem>
@@ -193,7 +278,13 @@ export function AuthForm({
           </div>
         )}
 
-        <Button type="submit" className="w-full" disabled={unavailable || pending}>
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={
+            unavailable || pending || (isSignUp && role !== "TEACHER" && role !== "STUDENT")
+          }
+        >
           {pending && <Loader2 className="animate-spin" />}
           {pending
             ? "Please wait…"
@@ -216,9 +307,37 @@ export function AuthForm({
   );
 }
 
-function getRole(): "TEACHER" | "STUDENT" {
-  const select = document.querySelector<HTMLSelectElement>('[name="role"]');
-  return select?.value === "TEACHER" ? "TEACHER" : "STUDENT";
+/** One of the two answers to "what is this account?". */
+function RoleChoice({
+  icon: Icon,
+  title,
+  description,
+  disabled,
+  onClick,
+}: {
+  icon: typeof GraduationCap;
+  title: string;
+  description: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="h-auto w-full justify-start gap-3 py-3 text-left"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="min-w-0">
+        <span className="block font-medium">{title}</span>
+        <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+          {description}
+        </span>
+      </span>
+    </Button>
+  );
 }
 
 function Alert({
@@ -252,11 +371,11 @@ function GoogleMark() {
       />
       <path
         fill="#FBBC05"
-        d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z"
+        d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05L2.18 9.7a11 11 0 0 0 0 9.9l3.66-2.84Z"
       />
       <path
-        fill="#EA4335"
-        d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5a11 11 0 0 0-9.82 6.05l3.66 2.84c.87-2.6 3.3-4.64 6.16-4.64Z"
+        fill="#EA4334"
+        d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5c-4.38 0-8.18 2.31-9.82 5.65l3.66 2.84c.87-2.6 3.3-4.64 6.16-4.64Z"
       />
     </svg>
   );

@@ -15,14 +15,42 @@ import { PrismaClient } from "../src/generated/prisma/client";
  * Every write is idempotent, so `npm run db:seed` can be run repeatedly without
  * duplicating stream posts, classwork, submissions or notifications.
  *
- *   npm run db:seed
+ *   SEED_ALLOW=true npm run db:seed
  */
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   console.error(
-    "\n  DATABASE_URL is not set. Copy .env.example to .env and add a PostgreSQL connection string.\n  See SETUP.md for a three-step Supabase walkthrough.\n",
+    "\n  DATABASE_URL is not set. Copy .env.example to .env and add a PostgreSQL connection string.\n  See SETUP.md for how to point the app at Neon or a local Postgres.\n",
   );
   process.exit(1);
+}
+
+/**
+ * Refuses to seed unless the operator says so.
+ *
+ * This project's `.env` points at the live Neon database, so an unguarded
+ * `npm run db:seed` writes fictional users and classes straight into
+ * production — where they show up in the admin console as if they were real
+ * people. Seeding has to be a deliberate act.
+ */
+if (process.env.SEED_ALLOW !== "true") {
+  console.error(
+    "\n  Refusing to seed: demo users and demo classes would be written to the\n" +
+      `  database in DATABASE_URL (${describeDatabase(connectionString)}).\n\n` +
+      "  If that is a scratch database, go ahead with:\n" +
+      "    SEED_ALLOW=true npm run db:seed\n",
+  );
+  process.exit(1);
+}
+
+/** Host and path only — never the credentials. */
+function describeDatabase(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.host}${parsed.pathname}`;
+  } catch {
+    return "the configured database";
+  }
 }
 
 const prisma = new PrismaClient({
