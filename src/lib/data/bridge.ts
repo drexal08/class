@@ -55,6 +55,7 @@ export async function listStagedBridgeStudents() {
       select: {
         id: true,
         email: true,
+        displayName: true,
         level: true,
         username: true,
         createdAt: true,

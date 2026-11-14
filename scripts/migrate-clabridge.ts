@@ -13,6 +13,10 @@
  * is also when their `User` row is guaranteed to exist. Students who have not
  * registered yet keep their nickname, level and marks waiting.
  *
+ * The rules for reading and staging the source live in
+ * `src/lib/bridge/legacy-source.ts`, shared with the live sync, so the two
+ * cannot drift.
+ *
  * Usage:
  *   npm run db:migrate-clabridge            # dry run — prints what would move
  *   npm run db:migrate-clabridge -- --apply # write the staging table
@@ -31,25 +35,18 @@ import type { ServiceAccount } from "firebase-admin/app";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 
+import {
+  readAllLegacyStudents,
+  stageLegacyStudent,
+  type LegacySourceReader,
+  type LegacyStageRow,
+  type LegacyStudentTable,
+} from "../src/lib/bridge/legacy-source";
 import { PrismaClient } from "../src/generated/prisma/client";
 
 const SOURCE_PROJECT = process.env.CLABRIDGE_PROJECT_ID ?? "clabridge-d7e6f";
 const APPLY = process.argv.includes("--apply");
-const LEVELS = ["s4", "s5", "s6"] as const;
-
-type SourceEstimate = Record<string, unknown>;
-
-/** One staged estimate, in the shape `claimLegacyBridgeData` reads back. */
-type StagedEstimateJson = {
-  combinationCode: string;
-  marks: Record<string, string>;
-  targets: Record<string, Record<string, TargetCells>>;
-  goalTargets: Record<string, string>;
-  overallTarget: string | null;
-  usefulnessRating: number | null;
-};
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -114,144 +111,113 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
 
-/** Coerce a stored mark/goal map into string values. */
-function stringMap(value: unknown): Record<string, string> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const result: Record<string, string> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === "string") result[key] = entry;
-    else if (typeof entry === "number" && Number.isFinite(entry)) {
-      result[key] = String(entry);
+/** Reads the standalone project. The rules live in `legacy-source.ts`. */
+const reader: LegacySourceReader = {
+  async listStudentIds() {
+    const snapshot = await firestore.collection("students").get();
+    return snapshot.docs.map((document) => document.id);
+  },
+  async studentDocument(uid) {
+    const snapshot = await firestore.doc(`students/${uid}`).get();
+    return { exists: snapshot.exists, data: snapshot.data() ?? {} };
+  },
+  async estimateDocument(uid, level) {
+    const snapshot = await firestore
+      .doc(`students/${uid}/estimates/${level.toLowerCase()}`)
+      .get();
+    return { exists: snapshot.exists, data: snapshot.data() ?? {} };
+  },
+  async authUserByEmail(email) {
+    try {
+      const user = await auth.getUserByEmail(email);
+      return {
+        uid: user.uid,
+        email: user.email ?? null,
+        displayName: user.displayName ?? null,
+      };
+    } catch {
+      return null;
     }
-  }
-  return result;
-}
-
-type TargetCells = { got: string; total: string }[];
-
-function targetMap(
-  value: unknown,
-): Record<string, Record<string, TargetCells>> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const result: Record<string, Record<string, TargetCells>> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
-    const columns: Record<string, TargetCells> = {};
-    for (const [column, cells] of Object.entries(entry)) {
-      if (!Array.isArray(cells)) continue;
-      columns[column] = cells.map((cell) => {
-        if (!cell || typeof cell !== "object") return { got: "", total: "" };
-        const row = cell as { got?: unknown; total?: unknown };
-        return {
-          got: typeof row.got === "string" ? row.got : "",
-          total: typeof row.total === "string" ? row.total : "",
-        };
-      });
+  },
+  async authUserByUid(uid) {
+    try {
+      const user = await auth.getUser(uid);
+      return {
+        uid: user.uid,
+        email: user.email ?? null,
+        displayName: user.displayName ?? null,
+      };
+    } catch {
+      return null;
     }
-    result[key] = columns;
-  }
-  return result;
-}
-
-function optionalString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value : null;
-}
-
-function optionalRating(value: unknown): number | null {
-  const rating = typeof value === "number" ? value : Number(value);
-  return Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null;
-}
-
-/** One staged student, in the shape `BridgeLegacyStudent` stores. */
-type SourceStudent = {
-  uid: string;
-  email: string;
-  level: "S4" | "S5" | "S6" | null;
-  username: string | null;
-  estimates: Record<string, StagedEstimateJson>;
+  },
 };
 
-/**
- * Reads one Firestore student document into the shape we stage.
- *
- * Returns null when the source has no email to join on, neither on the
- * document nor on the Firebase Auth user.
- */
-async function readStudent(
-  document: QueryDocumentSnapshot,
-): Promise<SourceStudent | null> {
-  const data = document.data();
-
-  let email = typeof data["email"] === "string" ? data["email"] : "";
-  if (!email) {
-    try {
-      email = (await auth.getUser(document.id)).email ?? "";
-    } catch {
-      email = "";
-    }
-  }
-  if (!email) return null;
-
-  const sourceLevel = String(data["level"] ?? "").toLowerCase();
-  const level = (LEVELS as readonly string[]).includes(sourceLevel)
-    ? (sourceLevel.toUpperCase() as "S4" | "S5" | "S6")
-    : null;
-
-  const rawUsername = optionalString(data["username"]);
-  const username = rawUsername
-    ? rawUsername.trim().replace(/^@/, "").toLowerCase()
-    : null;
-
-  const estimates: Record<string, StagedEstimateJson> = {};
-  for (const sourceKey of LEVELS) {
-    const snapshot = await document.ref
-      .collection("estimates")
-      .doc(sourceKey)
-      .get();
-    if (!snapshot.exists) continue;
-
-    const estimate = snapshot.data() as SourceEstimate;
-    estimates[sourceKey.toUpperCase()] = {
-      combinationCode: optionalString(estimate["combination_code"]) ?? "",
-      marks: stringMap(estimate["marks"]),
-      targets: targetMap(estimate["targets"]),
-      goalTargets: stringMap(estimate["goal_targets"]),
-      overallTarget: optionalString(estimate["overall_target"]),
-      usefulnessRating: optionalRating(estimate["usefulness_rating"]),
-    };
-  }
-
-  return {
-    uid: document.id,
-    email: email.trim().toLowerCase(),
-    level,
-    username,
-    estimates,
-  };
-}
-
-/** Writes one staged student. Safe to re-run: it upserts on the source uid. */
-async function stageStudent(student: SourceStudent): Promise<void> {
-  await prisma.bridgeLegacyStudent.upsert({
-    where: { sourceUid: student.uid },
-    create: {
-      sourceUid: student.uid,
-      email: student.email,
-      level: student.level,
-      username: student.username,
-      estimates: student.estimates,
-    },
-    update: {
-      email: student.email,
-      level: student.level,
-      username: student.username,
-      estimates: student.estimates,
-    },
-  });
-}
+/** Writes staged rows. The rules live in `legacy-source.ts`. */
+const table: LegacyStudentTable = {
+  async findByEmail(email) {
+    const row = await prisma.bridgeLegacyStudent.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        sourceUid: true,
+        email: true,
+        level: true,
+        username: true,
+        displayName: true,
+        estimates: true,
+        claimedAt: true,
+      },
+    });
+    return row ? (row as LegacyStageRow) : null;
+  },
+  async findByUid(sourceUid) {
+    const row = await prisma.bridgeLegacyStudent.findUnique({
+      where: { sourceUid },
+      select: {
+        id: true,
+        sourceUid: true,
+        email: true,
+        level: true,
+        username: true,
+        displayName: true,
+        estimates: true,
+        claimedAt: true,
+      },
+    });
+    return row ? (row as LegacyStageRow) : null;
+  },
+  async update(id, fields) {
+    await prisma.bridgeLegacyStudent.update({
+      where: { id },
+      data: {
+        ...(fields.email === undefined ? {} : { email: fields.email }),
+        level: fields.level,
+        username: fields.username,
+        displayName: fields.displayName,
+        estimates: fields.estimates,
+      },
+    });
+  },
+  async create(fields) {
+    await prisma.bridgeLegacyStudent.create({
+      data: {
+        sourceUid: fields.sourceUid,
+        email: fields.email ?? null,
+        level: fields.level,
+        username: fields.username,
+        displayName: fields.displayName,
+        estimates: fields.estimates,
+      },
+    });
+  },
+};
 
 /** One-line report for the dry-run output. */
-function describeStudent(student: SourceStudent, hasAccount: boolean): string {
+function describeStudent(
+  student: { email: string; level: string | null; username: string | null; estimates: object },
+  hasAccount: boolean,
+): string {
   const levels = Object.keys(student.estimates);
   return (
     `${student.email}: ${student.level ?? "no level"}` +
@@ -273,41 +239,17 @@ async function main() {
     ),
   );
 
-  const claimedUids = new Set(
-    (
-      await prisma.bridgeLegacyStudent.findMany({
-        select: { sourceUid: true, claimedAt: true },
-        where: { claimedAt: { not: null } },
-      })
-    ).map((row) => row.sourceUid),
-  );
-
-  const students = await firestore.collection("students").get();
+  const { students, withoutAddress } = await readAllLegacyStudents(reader);
   const summary = {
-    students: students.size,
+    students: students.length + withoutAddress.length,
     staged: 0,
     withAccount: 0,
     withoutAccount: 0,
-    alreadyClaimed: 0,
-    skippedNoEmail: 0,
+    skippedNoEmail: withoutAddress.length,
     errors: 0,
   };
 
-  for (const document of students.docs) {
-    if (claimedUids.has(document.id)) {
-      summary.alreadyClaimed += 1;
-      continue;
-    }
-
-    const student = await readStudent(document);
-    if (!student) {
-      summary.skippedNoEmail += 1;
-      console.warn(
-        `- ${document.id}: no email on the student document or Auth user`,
-      );
-      continue;
-    }
-
+  for (const student of students) {
     const hasAccount = accountEmails.has(student.email);
     summary[hasAccount ? "withAccount" : "withoutAccount"] += 1;
     console.log(describeStudent(student, hasAccount));
@@ -318,12 +260,16 @@ async function main() {
     }
 
     try {
-      await stageStudent(student);
+      await stageLegacyStudent(table, student);
       summary.staged += 1;
     } catch (error) {
       summary.errors += 1;
       console.error(`  failed to stage ${student.email}:`, error);
     }
+  }
+
+  for (const uid of withoutAddress) {
+    console.warn(`- ${uid}: no email on the student document or Auth user`);
   }
 
   console.log("\nSummary");

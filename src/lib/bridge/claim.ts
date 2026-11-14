@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { BridgeLevel, Prisma } from "@/generated/prisma/client";
+import { pullLegacyStudentByEmail } from "@/lib/bridge/legacy-sync";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -11,6 +12,11 @@ import { prisma } from "@/lib/prisma";
  * every source document in `BridgeLegacyStudent` keyed by email; this function
  * moves that row into the live tables the first time the student opens
  * `/bridge`, which is also when they are guaranteed to have a `User` row.
+ *
+ * A student who signs up after the original import has nothing staged yet, so
+ * their clabridge record is pulled on the spot. That is what makes the import
+ * automatic: the student arrives with their nickname and their marks without
+ * anyone running a script.
  *
  * The claim is idempotent and never overwrites an estimate the student has
  * already started editing here. A failure is logged and swallowed: a missing
@@ -122,14 +128,31 @@ function stagedEstimates(value: unknown): StagedEstimate[] {
 export async function claimLegacyBridgeData(user: {
   id: string;
   email: string;
+  displayName?: string | null;
 }): Promise<BridgeLevel | null> {
   const email = user.email.trim().toLowerCase();
   if (!email) return null;
 
-  const staged = await prisma.bridgeLegacyStudent.findUnique({
+  let staged = await prisma.bridgeLegacyStudent.findUnique({
     where: { email },
     select: { id: true, claimedAt: true },
   });
+
+  if (!staged) {
+    // Nothing is staged for this address: pull the student's clabridge record
+    // now, so someone who signs up after the original import still claims
+    // their nickname and their progress.
+    const pulled = await pullLegacyStudentByEmail(email);
+    if (pulled === "unknown" || pulled === "disabled" || pulled === "failed") {
+      return null;
+    }
+
+    staged = await prisma.bridgeLegacyStudent.findUnique({
+      where: { email },
+      select: { id: true, claimedAt: true },
+    });
+  }
+
   if (!staged || staged.claimedAt) return null;
 
   try {
@@ -167,10 +190,27 @@ export async function claimLegacyRow(
           claimedAt: true,
           level: true,
           username: true,
+          displayName: true,
           estimates: true,
         },
       });
       if (!row || row.claimedAt) return null;
+
+      // The name the student had in the standalone app fills in an empty one
+      // here. An account that already has a name keeps it: this is a gap to
+      // fill, not a rename.
+      if (row.displayName) {
+        const account = await tx.user.findUnique({
+          where: { id: user.id },
+          select: { displayName: true },
+        });
+        if (account && !account.displayName?.trim()) {
+          await tx.user.update({
+            where: { id: user.id },
+            data: { displayName: row.displayName },
+          });
+        }
+      }
 
       const profile = await tx.bridgeProfile.findUnique({
         where: { userId: user.id },

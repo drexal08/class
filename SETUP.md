@@ -125,8 +125,45 @@ seeded user with **no password**:
 5. **Authentication → Settings → Authorized domains** → add your deployment
    domain, or the Google popup will be rejected.
 
-The first sign-in creates the `User` row. The role chosen at sign-up is only
-honoured on creation — after that, only an admin can change roles.
+The first sign-in creates the `User` row. A brand-new account is asked whether
+it is a student or a teacher before anything is created, so nobody lands in the
+student experience by accident. The role is only honoured on creation — after
+that, only an admin can change roles.
+
+## CLA Bridge imports (optional)
+
+CLA Bridge was a standalone app on its own Firebase project. Its students are
+pulled into LMS Core so that they keep their nickname, their level and their
+marks when they sign up here.
+
+With the credentials in place, nothing has to be run by hand: a student who
+signs up with the address they used in the standalone app finds their import
+waiting the first time they open `/bridge`.
+
+```ini
+# The service account of the standalone project, raw or base64 JSON.
+CLABRIDGE_SERVICE_ACCOUNT_KEY="..."
+CLABRIDGE_PROJECT_ID="clabridge-d7e6f"
+```
+
+On a machine with the service-account file on disk, point at it instead and
+keep the key out of the environment:
+
+```ini
+CLABRIDGE_SERVICE_ACCOUNT_FILE="C:\path\to\clabridge-service-account.json"
+```
+
+To stage everybody at once — and to see who is still waiting — use the admin
+console (**Admin console → CLA Bridge imports → Pull new imports**) or the
+endpoint a scheduler can call:
+
+```bash
+curl -X POST https://<your-deployment>/api/bridge/legacy-sync \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Without the credentials the app behaves exactly as it did before the import
+existed: no error, no warning, just no imports.
 
 ## File uploads (Neon Object Storage, Cloudflare R2 or AWS S3)
 

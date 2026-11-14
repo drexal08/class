@@ -198,6 +198,40 @@ students/{firebaseUid}/estimates/{s4|s5|s6}
   overall_target, usefulness_rating, updated_at
 ```
 
+### Pulling new students automatically
+
+The original import was a one-time script, so a student who signed up in the
+standalone app *after* it ran had nothing waiting for them. The pull is now
+automatic:
+
+- `src/lib/bridge/legacy-sync.ts` reads the standalone project and stages
+  everyone who is not staged yet.
+- `src/lib/bridge/claim.ts` calls it when a student opens `/bridge` and
+  nothing is staged for their address. Their nickname, their level and their
+  marks are there before the estimator renders.
+- `POST /api/bridge/legacy-sync` sweeps the whole source at once. An
+  administrator can trigger it from the admin console ("Pull new imports"), and
+  a scheduler can call it with `Authorization: Bearer $CRON_SECRET`.
+- The rules for reading and staging the source live in
+  `src/lib/bridge/legacy-source.ts`, shared by the script and the sync, so the
+  two cannot drift. `src/lib/bridge/legacy-source.test.ts` covers them.
+
+The credentials are optional. `CLABRIDGE_SERVICE_ACCOUNT_KEY` (raw or base64
+JSON) or `CLABRIDGE_SERVICE_ACCOUNT_FILE` point at the standalone project's
+service account; `CLABRIDGE_PROJECT_ID` names the project and defaults to
+`clabridge-d7e6f`. Without them the pull is skipped and nothing else changes.
+
+Staging rules:
+
+- A row that has already been claimed is never touched. The LMS database is the
+  source of truth from that point on.
+- A row is matched on the address first, so a student who recreated their
+  clabridge account keeps their import.
+- A row that has not been claimed yet is refreshed, because the student may
+  have kept working in the standalone app after the first import.
+- The name the student had in the standalone app fills in an empty display
+  name on their LMS account; an account that already has a name keeps it.
+
 Steps:
 
 1. Apply the schema migration:
@@ -243,27 +277,39 @@ Claiming rules:
   cold start can otherwise eat Prisma's 5 s default before the first write.
 - Already-claimed rows are skipped by re-runs, so the script is safe to repeat.
 - A student who registers with a **different** email will not match. The staged
-  row stays unclaimed until the address is fixed by hand — there is no admin UI
-  for that yet.
+  row stays unclaimed until the address is fixed by hand — the admin console
+  can link a row to the account that exists.
 - The one source document with no email on the document or the Auth user is
   skipped and reported.
 
-### Migration status (2026-11-13)
+### Migration status (2026-11-14)
 
 Staged against the Neon project `neon-amethyst-candle` (`floral-king-64647468`).
 
 | Measure | Count |
 | :-- | --: |
-| clabridge student documents | 28 |
-| staged rows | 27 |
-| already had an LMS account | 1 |
-| no LMS account yet | 26 |
+| clabridge student documents | 34 |
+| staged rows | 33 |
+| already had an LMS account | 3 |
+| no LMS account yet | 30 |
 | skipped — no email anywhere | 1 |
 
+Six students joined the standalone app after the first import and were pulled
+in when the automatic sync landed:
+
+| Address | Name | Nickname | Level |
+| :-- | :-- | :-- | :-- |
+| `akwirabenibruce@gmail.com` | akwira | @akwira | S6 |
+| `dieudonneniyomwunger@ikaze.isomo.rw` | mukristo | @mukristo | S5 |
+| `donydolucia@gmail.com` | dony | @dony | S4 |
+| `ishimwebenicaleb04@gmail.com` | clebbbeni8 | @clebbbeni8 | S5 |
+| `marcelhirwa2024@gmail.com` | marcello | @marcello | S6 |
+| `shemakelly260@gmail.com` | kelly | @kelly | S5 |
+
 `byiringirinnocent8@gmail.com` was also imported directly before staging
-existed: profile S6 (`@giant`) and three estimates. The remaining 18 students
-with real marks and assessment tables keep them in `BridgeLegacyStudent` until
-they sign in.
+existed: profile S6 (`@giant`) and three estimates. The remaining students with
+real marks and assessment tables keep them in `BridgeLegacyStudent` until they
+sign in.
 
 Do **not** invent `User` rows keyed by clabridge UIDs: those UIDs belong to
 another Firebase project, and the email uniqueness constraint would then block

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { AuthError, requireAdmin, requireUser, runAction } from "@/lib/auth/guards";
 import { claimLegacyRow } from "@/lib/bridge/claim";
+import { pullAllLegacyStudents } from "@/lib/bridge/legacy-sync";
 import { bridgeLevelSchema } from "@/lib/bridge/validation";
 import { prisma } from "@/lib/prisma";
 import type { ActionState } from "@/lib/types";
@@ -108,6 +109,32 @@ export async function assignLegacyBridgeStudentAction(
     await claimLegacyRow({ id: user.id, email: user.email }, row.id);
 
     revalidatePath("/admin");
+  });
+}
+
+/**
+ * Admin-only: pulls the clabridge students that are not staged yet.
+ *
+ * The import is automatic for a student who opens the estimator, but an
+ * administrator also wants to see who is waiting before that happens. This
+ * sweeps the standalone project and stages everyone who is not staged yet.
+ */
+export async function syncLegacyBridgeStudentsAction(): Promise<ActionState> {
+  return runAction(async () => {
+    await requireAdmin();
+
+    const summary = await pullAllLegacyStudents();
+    if (summary.disabled) {
+      return {
+        error:
+          "This deployment has no credentials for the standalone CLA Bridge project.",
+      };
+    }
+
+    revalidatePath("/admin");
+    return {
+      success: true,
+    };
   });
 }
 
