@@ -111,12 +111,18 @@ export const studentWorkflow = [
   },
 ] as const;
 
-/** The section links in the page header. */
+/**
+ * The section links in the page header.
+ *
+ * Absolute, so the same header works on the policy pages as well as on the
+ * landing page: from `/privacy` the browser has to go home before it can
+ * scroll to a section.
+ */
 export const landingNav = [
-  { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "For teachers", href: "#teachers" },
-  { label: "For students", href: "#students" },
+  { label: "Features", href: "/#features" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "For teachers", href: "/#teachers" },
+  { label: "For students", href: "/#students" },
 ] as const;
 
 /** The links in the footer. Every one of them points at a real route. */
@@ -135,6 +141,14 @@ export const footerLinks = [
     links: [
       { label: "Create an account", href: "/register" },
       { label: "Sign in", href: "/login" },
+    ],
+  },
+  {
+    heading: "Policies",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms of use", href: "/terms" },
+      { label: "Accessibility", href: "/accessibility" },
     ],
   },
 ] as const;

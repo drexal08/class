@@ -261,4 +261,56 @@
       padding-inline: 1.5rem;
     }
   }
+
+  /* -------------------------------------------------------------------------
+     Long-form text
+
+     The policy pages are the only prose in the product, so the type rules
+     live here instead of arriving as a plugin and a second set of tokens:
+     body copy at the muted colour the rest of the app uses for secondary
+     text, headings and emphasis at the foreground colour, and links that
+     read as links without introducing a colour of their own.
+     ---------------------------------------------------------------------- */
+  .policy-prose {
+    color: var(--muted-foreground);
+    font-size: 0.9375rem;
+    line-height: 1.7;
+  }
+
+  .policy-prose > * + * {
+    margin-top: 0.9rem;
+  }
+
+  .policy-prose strong {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .policy-prose ul {
+    list-style: disc;
+    padding-inline-start: 1.15rem;
+  }
+
+  .policy-prose li + li {
+    margin-top: 0.4rem;
+  }
+
+  .policy-prose a {
+    color: var(--foreground);
+    font-weight: 500;
+    text-decoration-line: underline;
+    text-decoration-color: var(--border);
+    text-underline-offset: 2px;
+  }
+
+  .policy-prose a:hover {
+    text-decoration-color: var(--foreground);
+  }
+
+  /* Cookie names, read out of a policy paragraph. */
+  .policy-prose code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.875em;
+    color: var(--foreground);
+  }
 }

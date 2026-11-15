@@ -136,6 +136,13 @@ drawing is reproduced in `src/app/icon.svg` (favicon) and
 wordmark reads its name from `siteConfig`, so it can never drift from the one
 used in page titles and metadata.
 
+**Public chrome and prose.** `src/components/marketing/site-header.tsx` and
+`site-footer.tsx` are the header and footer that every public page shares — the
+landing page and the three policies — so a link is added in one place. Policy
+text uses the `.policy-prose` rules in `globals.css`: one measure, one rhythm,
+and links and emphasis drawn from the existing tokens instead of a typography
+plugin and a second set of defaults.
+
 ## Design notes
 
 - **Graceful degradation.** Prisma, Firebase Admin, S3 and Pusher clients are all
@@ -149,6 +156,14 @@ used in page titles and metadata.
   single cookie verification and database read.
 - **The landing page is a static document.** It reads no cookies and no
   database, so it is prerendered and served from the CDN.
+- **The policies are real pages.** `/privacy`, `/terms` and `/accessibility`
+  sit in the same public chrome as the landing page, are listed in the sitemap
+  and are linked from the footer. They describe what the code actually does —
+  the two cookies and their lifetimes, the storage model, the signed file
+  links — and say plainly what has not been done rather than claiming a
+  certification. The address they point at comes from
+  `NEXT_PUBLIC_CONTACT_EMAIL`; without it they say that no address is
+  published instead of showing a placeholder.
 - **`proxy.ts` checks cookie presence only.** Real verification happens in server
   components and actions; a forged cookie gets past the gate and dies there.
   A visitor who arrives at the landing page with a cookie is handed to
@@ -168,6 +183,9 @@ against the server-rendered landing page it replaced, it is faster end to end:
 first contentful paint 1.1 s (was 1.5 s), total blocking time 0.77 s (was
 2.48 s), speed index 2.0 s (was 7.9 s), for about 11 KiB more transferred.
 Lighthouse scores 100 for accessibility, best practices and SEO.
+
+The three policy pages are prerendered too, and each scores 100 for
+accessibility (checked on `/privacy`, `/terms` and `/accessibility`).
 
 Not verifiable without credentials: migrations against a live database, Firebase
 token exchange, presigned uploads (bucket CORS is the usual failure), and Pusher

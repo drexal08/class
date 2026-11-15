@@ -13,13 +13,12 @@ import {
   Users,
 } from "lucide-react";
 
-import { LogoLockup } from "@/components/brand/logo";
+import { SiteFooter } from "@/components/marketing/site-footer";
+import { SiteHeader } from "@/components/marketing/site-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   featureHighlights,
-  footerLinks,
-  landingNav,
   principles,
   studentWorkflow,
   teacherWorkflow,
@@ -311,110 +310,6 @@ export default function LandingPage() {
         <SiteFooter />
       </div>
     </>
-  );
-}
-
-/* -------------------------------------------------------------------------
-   Header
-   ------------------------------------------------------------------------- */
-
-function SiteHeader() {
-  return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="container-page flex h-16 items-center gap-3 sm:gap-6">
-        <Link
-          href="/"
-          className="flex shrink-0 items-center rounded-md"
-          aria-label={siteConfig.name}
-        >
-          <LogoLockup nameClassName="hidden sm:inline" />
-        </Link>
-
-        <nav
-          aria-label="Sections"
-          className="hidden items-center gap-7 text-sm font-medium text-muted-foreground md:flex"
-        >
-          {landingNav.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="transition-colors hover:text-foreground"
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            asChild
-            variant="ghost"
-            className="hidden sm:inline-flex"
-          >
-            <Link href="/login">Sign in</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/register">Get started</Link>
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-/* -------------------------------------------------------------------------
-   Footer
-   ------------------------------------------------------------------------- */
-
-/**
- * The copyright year is read once, at build time.
- *
- * The landing page is a static document, so the year it shows is the year it
- * was built in — and every deploy rebuilds it. Reading the clock inside the
- * component would make the render impure for no gain.
- */
-const COPYRIGHT_YEAR = new Date().getFullYear();
-
-function SiteFooter() {
-  return (
-    <footer className="border-t border-border bg-card">
-      <div className="container-page py-14">
-        <div className="grid gap-10 md:grid-cols-[minmax(0,1.6fr)_repeat(2,minmax(0,1fr))]">
-          <div>
-            <LogoLockup />
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Classes, classwork, rubrics and grading in one focused place —
-              built for schools, colleges and training teams.
-            </p>
-          </div>
-
-          {footerLinks.map((group) => (
-            <div key={group.heading}>
-              <h2 className="text-sm font-semibold">{group.heading}</h2>
-              <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-                {group.links.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      className="transition-colors hover:text-foreground"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-12 flex flex-col gap-2 border-t border-border pt-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            © {COPYRIGHT_YEAR} {siteConfig.name}
-          </p>
-          <p>Built for the people who make classrooms work.</p>
-        </div>
-      </div>
-    </footer>
   );
 }
 

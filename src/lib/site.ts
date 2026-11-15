@@ -5,6 +5,14 @@ export const siteConfig = {
   description:
     "LMS Core is a calm classroom for schools, colleges and training teams. Create classes, share classwork, collect submissions and grade them against a rubric.",
   url: siteUrl(),
+  /**
+   * The address the policy pages tell people to write to.
+   *
+   * It belongs to whoever operates the deployment, so it is configuration
+   * rather than copy. Unset, the pages say that the address is not published
+   * instead of showing a placeholder nobody reads.
+   */
+  contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || null,
 } as const;
 
 /**
