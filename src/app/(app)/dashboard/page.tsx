@@ -92,7 +92,7 @@ function CourseSection({
 }) {
   return (
     <section>
-      <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
+      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
       <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {courses.map((course) => (
           <li key={course.id}>

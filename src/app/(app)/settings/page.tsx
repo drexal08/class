@@ -51,7 +51,9 @@ export default async function SettingsPage() {
         </Card>
 
         <Card className="p-6">
-          <h2 className="font-medium">Your name</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            Your name
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             This is how you appear to classmates and teachers.
           </p>
@@ -60,7 +62,9 @@ export default async function SettingsPage() {
 
         {user.isAdmin && (
           <Card className="p-6">
-            <h2 className="font-medium">This deployment</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              This deployment
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Optional integrations and whether they are configured.
             </p>

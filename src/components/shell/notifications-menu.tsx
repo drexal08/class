@@ -68,7 +68,7 @@ export function NotificationsMenu({
           <Bell strokeWidth={1.75} />
           {unread > 0 && (
             <span
-              className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground"
+              className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-semibold leading-none text-primary-foreground"
               aria-hidden
             >
               {unread > 9 ? "9+" : unread}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -138,7 +138,7 @@ export function MapTargetPlanner({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-xl font-semibold text-foreground">
+          <h3 className="text-base font-semibold leading-tight tracking-tight text-foreground">
             MAP target planner
           </h3>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
@@ -162,7 +162,7 @@ export function MapTargetPlanner({
                 overall average
               </caption>
               <thead>
-                <tr className="border-b border-border text-left text-[11px] uppercase tracking-[0.15em] text-muted-foreground">
+                <tr className="border-b border-border text-left text-xs uppercase tracking-[0.15em] text-muted-foreground">
                   <th scope="col" className="py-2 pr-3 font-semibold">
                     Order
                   </th>
@@ -188,12 +188,12 @@ export function MapTargetPlanner({
                         {row.rank + 1}
                       </span>
                       {row.rank === 0 && (
-                        <span className="ml-2 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                        <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-primary">
                           Hardest
                         </span>
                       )}
                       {row.rank === plan.length - 1 && plan.length > 1 && (
-                        <span className="ml-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Easiest
                         </span>
                       )}

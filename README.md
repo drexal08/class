@@ -96,6 +96,46 @@ file is a public POST endpoint, so all reads live in `src/lib/data/*` behind
 | `npm run db:studio` | Prisma Studio |
 | `npm run storage:test` | Upload, list and read back an object in the Neon bucket |
 
+## Design system
+
+**One palette.** Everything is a shadcn token from `src/app/globals.css` —
+`bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`,
+`bg-primary`, plus the status tokens `text-success`, `text-warning`,
+`text-danger`, `text-info`. There is no second brand palette. Course and avatar
+identity uses a *tone ladder* (`slate`, `stone`, `slate-light`, `stone-light`,
+`slate-pale`, `stone-pale`) rather than hues, so a class still has its own face
+without introducing a colour that competes with the content. The one deliberate
+exception is the official Google logo, which keeps Google's brand colours.
+
+**One type scale.** Inter throughout. The font variable sits on `<html>` and
+the `font-sans` utility on `<body>`, which is what makes the family resolve —
+a custom property is substituted where it is declared, so a variable defined
+on the body cannot be picked up by a rule on the root. The same role always
+gets the same size:
+
+| Role | Classes |
+| :-- | :-- |
+| Page heading | `text-2xl font-semibold tracking-tight` |
+| Route heading under a persistent course heading | `text-xl font-semibold tracking-tight` |
+| Section heading | `text-lg font-semibold tracking-tight` |
+| Card heading | `text-base font-semibold leading-tight tracking-tight` |
+| Compact subsection | `text-sm font-semibold` |
+| Body | `text-sm` |
+| Metadata | `text-xs` |
+
+The CLA Bridge estimator is a dense tool, so its sections use the compact
+subsection role rather than the section role.
+
+**One heading per page.** The course layout owns the `<h1>`; child routes render
+their title as an `<h2>`. Card headings inside them are `<h3>`. `EmptyState`
+takes an `as` prop so it can fill the same slot as whatever it replaces.
+
+**The mark.** `src/components/brand/logo.tsx` holds the geometry. The same
+drawing is reproduced in `src/app/icon.svg` (favicon) and
+`src/app/opengraph-image.tsx` (social card) — keep the three in step. The
+wordmark reads its name from `siteConfig`, so it can never drift from the one
+used in page titles and metadata.
+
 ## Design notes
 
 - **Graceful degradation.** Prisma, Firebase Admin, S3 and Pusher clients are all
@@ -107,14 +147,27 @@ file is a public POST endpoint, so all reads live in `src/lib/data/*` behind
 - **One session lookup per request.** `getCurrentUser()` is wrapped in
   `React.cache`, so the layout, page, header and every data function share a
   single cookie verification and database read.
+- **The landing page is a static document.** It reads no cookies and no
+  database, so it is prerendered and served from the CDN.
 - **`proxy.ts` checks cookie presence only.** Real verification happens in server
   components and actions; a forged cookie gets past the gate and dies there.
+  A visitor who arrives at the landing page with a cookie is handed to
+  `/api/auth/landing`, which verifies it properly: a real session goes to the
+  dashboard, a dead one is cleared and the visitor is put back on the landing
+  page. Anonymous visitors never reach that route.
 
 ## Verified
 
 `prisma validate`, `prisma generate`, `tsc --noEmit`, `eslint`, and
 `next build` **with no environment variables at all** — plus a dev-server smoke
 test of the public routes, the auth redirect and `/api/health`.
+
+The landing page is prerendered (`○` in the build output) and served as a
+static document that never touches the database. Measured on the same machine
+against the server-rendered landing page it replaced, it is faster end to end:
+first contentful paint 1.1 s (was 1.5 s), total blocking time 0.77 s (was
+2.48 s), speed index 2.0 s (was 7.9 s), for about 11 KiB more transferred.
+Lighthouse scores 100 for accessibility, best practices and SEO.
 
 Not verifiable without credentials: migrations against a live database, Firebase
 token exchange, presigned uploads (bucket CORS is the usual failure), and Pusher

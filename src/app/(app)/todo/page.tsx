@@ -245,7 +245,7 @@ function Rule({ accent }: { accent: string }) {
 
 function Count({ children }: { children: React.ReactNode }) {
   return (
-    <span className="ml-1.5 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground tabular-nums">
+    <span className="ml-1.5 rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
       {children}
     </span>
   );

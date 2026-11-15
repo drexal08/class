@@ -29,6 +29,7 @@ export default async function JoinPage({
     return (
       <div className="container-feed py-16">
         <EmptyState
+          as="h1"
           icon={SearchX}
           title="No class with that code"
           description="Check the code with your teacher — it is seven letters and numbers."

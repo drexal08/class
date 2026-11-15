@@ -15,7 +15,7 @@ export function CombinationPicker({
 }) {
   return (
     <section aria-busy={false} className="mt-8">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+      <h2 className="text-sm font-semibold">
         Your combination
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -40,7 +40,7 @@ export function CombinationPicker({
               >
                 {item.code}
               </span>
-              <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
+              <span className="mt-1 block text-xs leading-snug text-muted-foreground">
                 {item.cores.join(" · ")}
               </span>
             </button>

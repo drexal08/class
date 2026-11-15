@@ -69,7 +69,7 @@ export function MarksImportPanel({ report }: { report: ImportReport | null }) {
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-2xl">
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="text-sm font-semibold">
             Import your AcademicBridge marks
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -159,7 +159,7 @@ export function MarksImportPanel({ report }: { report: ImportReport | null }) {
             rows={3}
             onFocus={(event) => event.currentTarget.select()}
             aria-label="Bookmarklet code"
-            className="mt-1 w-full rounded-md border border-border bg-background p-2 font-mono text-[10px] text-foreground"
+            className="mt-1 w-full rounded-md border border-border bg-background p-2 font-mono text-xs text-foreground"
           />
         </div>
       )}

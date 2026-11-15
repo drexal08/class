@@ -47,7 +47,9 @@ export function CourseSettingsForm({ course }: { course: Course }) {
   return (
     <div className="space-y-6">
       <Card className="p-6">
-        <h2 className="font-medium">Class details</h2>
+        <h3 className="text-base font-semibold leading-tight tracking-tight">
+          Class details
+        </h3>
 
         <form action={formAction} className="mt-4 space-y-4">
           <input type="hidden" name="courseId" value={course.id} />
@@ -127,7 +129,9 @@ export function CourseSettingsForm({ course }: { course: Course }) {
       </Card>
 
       <Card className="p-6">
-        <h2 className="font-medium">Class code</h2>
+        <h3 className="text-base font-semibold leading-tight tracking-tight">
+          Class code
+        </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Students use this to join. Reset it to stop new people joining with the
           old one — anyone already enrolled stays enrolled.
@@ -159,9 +163,9 @@ export function CourseSettingsForm({ course }: { course: Course }) {
       </Card>
 
       <Card className="p-6">
-        <h2 className="font-medium">
+        <h3 className="text-base font-semibold leading-tight tracking-tight">
           {course.archived ? "Restore class" : "Archive class"}
-        </h2>
+        </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {course.archived
             ? "Restoring makes this class active again for everyone in it."

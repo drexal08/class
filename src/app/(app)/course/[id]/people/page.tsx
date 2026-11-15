@@ -33,7 +33,9 @@ export default async function PeoplePage({
       {course.canManage && (
         <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div>
-            <h2 className="text-sm font-medium">Invite students</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              Invite students
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Share this code, or send the invite link.
             </p>
@@ -66,7 +68,9 @@ export default async function PeoplePage({
       {course.isEnrolled && course.teacherId !== user.id && (
         <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div>
-            <h2 className="text-sm font-medium">Leave this class</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              Leave this class
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               You will lose access to its stream, classwork and grades.
             </p>

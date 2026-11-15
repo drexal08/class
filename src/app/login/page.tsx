@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { AuthForm } from "@/components/auth/auth-form";
+import { LogoLockup } from "@/components/brand/logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isDevAuthEnabledClient, isFirebaseClientConfigured } from "@/lib/env";
 import { siteConfig } from "@/lib/site";
@@ -32,11 +33,12 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-border bg-card">
         <div className="container-page flex h-16 items-center">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-              L
-            </span>
-            <span className="text-base font-semibold">{siteConfig.name}</span>
+          <Link
+            href="/"
+            className="flex items-center rounded-md"
+            aria-label={siteConfig.name}
+          >
+            <LogoLockup />
           </Link>
         </div>
       </header>

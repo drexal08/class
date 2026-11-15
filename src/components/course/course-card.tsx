@@ -38,7 +38,7 @@ export function CourseCard({ course, role }: CourseCardProps) {
       <div className="p-5 pl-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="truncate font-semibold leading-tight">
+            <h3 className="truncate text-base font-semibold leading-tight tracking-tight">
               <Link
                 href={`/course/${course.id}`}
                 className="outline-none after:absolute after:inset-0 focus-visible:underline"

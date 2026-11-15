@@ -74,7 +74,7 @@ export function AnnouncementCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2">
-            <span className="font-medium">{displayNameOf(post.author)}</span>
+            <span className="text-sm font-medium">{displayNameOf(post.author)}</span>
             <span className="text-xs text-muted-foreground">
               {formatRelative(post.createdAt)}
             </span>

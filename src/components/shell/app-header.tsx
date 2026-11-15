@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 
+import { LogoLockup } from "@/components/brand/logo";
 import { NotificationsMenu } from "@/components/shell/notifications-menu";
 import { PrimaryNav } from "@/components/shell/primary-nav";
 import { UserMenu } from "@/components/shell/user-menu";
@@ -21,14 +22,10 @@ export function AppHeader({ user }: { user: SessionUser }) {
       <div className="container-page flex h-16 items-center gap-4">
         <Link
           href="/dashboard"
-          className="flex shrink-0 items-center gap-2.5 rounded-md"
+          className="flex shrink-0 items-center rounded-md"
+          aria-label={siteConfig.name}
         >
-          <span className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-            L
-          </span>
-          <span className="hidden text-base font-semibold sm:inline">
-            {siteConfig.name}
-          </span>
+          <LogoLockup nameClassName="hidden sm:inline" />
         </Link>
 
         <PrimaryNav role={user.role} isAdmin={user.isAdmin} />

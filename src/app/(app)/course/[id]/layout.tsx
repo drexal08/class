@@ -64,7 +64,7 @@ export default async function CourseLayout({
                   aria-hidden
                 />
                 <div className="min-w-0">
-                  <h1 className="truncate text-xl font-semibold tracking-tight">
+                  <h1 className="truncate text-2xl font-semibold tracking-tight">
                     {course.name}
                   </h1>
                   <p className="mt-0.5 truncate text-sm text-muted-foreground">

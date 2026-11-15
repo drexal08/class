@@ -36,9 +36,9 @@ export default async function EditAssignmentPage({
         </Link>
       </Button>
 
-      <h1 className="mb-6 text-xl font-semibold tracking-tight">
+      <h2 className="mb-6 text-xl font-semibold tracking-tight">
         Edit classwork
-      </h1>
+      </h2>
 
       <EditAssignmentForm
         courseId={id}

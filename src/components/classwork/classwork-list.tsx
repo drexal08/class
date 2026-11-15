@@ -119,7 +119,7 @@ export function ClassworkGroup({
   return (
     <section>
       {title && (
-        <h2 className="mb-2 px-1 text-sm font-medium text-muted-foreground">
+        <h2 className="mb-2 px-1 text-lg font-semibold tracking-tight">
           {title}
         </h2>
       )}

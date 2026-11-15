@@ -86,7 +86,9 @@ export default async function BridgePage({
     return (
       <div className="container-page py-8">
         <Card className="mx-auto max-w-xl p-6">
-          <h1 className="text-xl font-semibold">CLA Bridge is for students</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            CLA Bridge is for students
+          </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             The report estimator is a student tool. Teachers can keep using the
             gradebook and classwork views for their classes.

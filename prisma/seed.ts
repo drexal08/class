@@ -152,7 +152,7 @@ async function main() {
       description:
         "An introduction to cell biology, genetics and ecology. Bring your lab notebook to every session.",
       code: code("biology"),
-      accent: "teal",
+      accent: "slate-light",
       teacherId: teacher.id,
     },
     update: {},
@@ -169,7 +169,7 @@ async function main() {
       description:
         "Close reading of novels, poetry and drama from around the world.",
       code: code("english"),
-      accent: "indigo",
+      accent: "stone-light",
       teacherId: teacher.id,
     },
     update: {},
@@ -280,7 +280,7 @@ async function main() {
   });
 
   // Submissions across every state, so each UI branch has data.
-  const [amara, ben, chidi, dana] = students;
+  const [amara, ben, chidi] = students;
 
   const amaraSubmission = await prisma.submission.upsert({
     where: {

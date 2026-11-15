@@ -51,7 +51,7 @@ export function MarkRow({
         <span className="min-w-32 flex-1 text-sm font-medium text-card-foreground">
           {subject.name}
         </span>
-        <span className="rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">
+        <span className="rounded-md bg-secondary px-2 py-0.5 text-xs font-semibold text-secondary-foreground">
           ×{subject.weight}
         </span>
         <span className="flex items-baseline gap-1">

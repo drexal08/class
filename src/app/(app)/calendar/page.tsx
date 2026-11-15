@@ -43,7 +43,7 @@ export default async function CalendarPage() {
         <div className="mt-8 space-y-8">
           {[...groups.entries()].map(([day, dayItems]) => (
             <section key={day}>
-              <h2 className="flex items-baseline gap-2 text-sm font-medium">
+              <h2 className="flex items-baseline gap-2 text-lg font-semibold tracking-tight">
                 {formatDayHeading(new Date(day))}
                 {isOverdue(day) && (
                   <span className="text-xs font-normal text-muted-foreground">

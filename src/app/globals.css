@@ -54,9 +54,9 @@
   --info: #0f766e;
   --info-muted: #f0fdfa;
 
-  /* Elevation: two levels, both nearly invisible */
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04);
-  --shadow-float: 0 4px 16px -4px rgb(15 23 42 / 0.12);
+  /* The scrim behind a modal. Kept as its own token so the dialog does not
+     reach for a raw slate utility and so dark mode can deepen it. */
+  --overlay: rgb(15 23 42 / 0.45);
 }
 
 .dark {
@@ -94,6 +94,8 @@
   --danger-muted: #450a0a;
   --info: #5eead4;
   --info-muted: #042f2e;
+
+  --overlay: rgb(2 6 23 / 0.62);
 }
 
 @theme inline {
@@ -125,6 +127,12 @@
   --color-danger-muted: var(--danger-muted);
   --color-info: var(--info);
   --color-info-muted: var(--info-muted);
+  --color-overlay: var(--overlay);
+
+  /* Elevation: two levels, both nearly invisible. Declared here so Tailwind
+     can generate the `shadow-card` and `shadow-float` utilities. */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-float: 0 4px 16px -4px rgb(15 23 42 / 0.12);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
@@ -148,7 +156,9 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
-    font-family: var(--font-sans);
+    /* The typeface comes from the `font-sans` utility in the root layout:
+       the font variable has to sit on an element that also carries the
+       utility, or the family name resolves to nothing. */
   }
 
   /* One visible focus style, applied consistently — a hard accessibility
@@ -200,6 +210,43 @@
     .container-page {
       padding-inline: 1.5rem;
     }
+  }
+
+  /* The landing page's atmosphere: a faint dot grid and a soft slate halo.
+     Both are derived from the design tokens, so they follow the theme and
+     never introduce a colour of their own. */
+  .hero-grid {
+    background-image: radial-gradient(
+      color-mix(in srgb, var(--foreground) 9%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 22px 22px;
+  }
+
+  /* Fades the grid out towards the bottom and the edges. */
+  .hero-mask {
+    -webkit-mask-image: radial-gradient(
+      78% 68% at 50% 0%,
+      #000 12%,
+      transparent 100%
+    );
+    mask-image: radial-gradient(78% 68% at 50% 0%, #000 12%, transparent 100%);
+  }
+
+  /* Two soft halos: one behind the headline, one behind the product preview.
+     Both use the primary token, so they stay in the slate family. */
+  .hero-glow {
+    background-image:
+      radial-gradient(
+        34rem 22rem at 20% -8rem,
+        color-mix(in srgb, var(--primary) 13%, transparent),
+        transparent 68%
+      ),
+      radial-gradient(
+        40rem 26rem at 80% 6rem,
+        color-mix(in srgb, var(--primary) 9%, transparent),
+        transparent 70%
+      );
   }
 
   .container-feed {

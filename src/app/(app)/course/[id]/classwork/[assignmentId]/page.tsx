@@ -100,9 +100,9 @@ export default async function AssignmentPage({
               )}
             </div>
 
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight">
+            <h2 className="mt-3 text-xl font-semibold tracking-tight">
               {assignment.title}
-            </h1>
+            </h2>
 
             <p className="mt-2 text-sm text-muted-foreground">
               {gradeable && `${assignment.maxPoints} points · `}
@@ -144,7 +144,9 @@ export default async function AssignmentPage({
 
             {assignment.rubric.length > 0 && (
               <div className="mt-6">
-                <h2 className="text-sm font-medium">Rubric</h2>
+                <h3 className="text-base font-semibold leading-tight tracking-tight">
+                  Rubric
+                </h3>
                 <ul className="mt-2 divide-y divide-border rounded-md border border-border">
                   {assignment.rubric.map((criterion) => (
                     <li
@@ -170,7 +172,9 @@ export default async function AssignmentPage({
           </Card>
 
           <Card className="p-5">
-            <h2 className="mb-3 text-sm font-medium">Class comments</h2>
+            <h3 className="mb-3 text-base font-semibold leading-tight tracking-tight">
+              Class comments
+            </h3>
             <CommentThread
               comments={comments}
               courseId={id}
@@ -186,7 +190,9 @@ export default async function AssignmentPage({
         <aside className="space-y-4">
           {isTeacher ? (
             <Card className="p-5">
-              <h2 className="font-medium">Student work</h2>
+              <h3 className="text-base font-semibold leading-tight tracking-tight">
+                Student work
+              </h3>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <Stat
@@ -228,7 +234,9 @@ export default async function AssignmentPage({
             />
           ) : (
             <Card className="p-5">
-              <h2 className="font-medium">Material</h2>
+              <h3 className="text-base font-semibold leading-tight tracking-tight">
+                Material
+              </h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 There is nothing to turn in for this item — it is here for you to
                 read and refer back to.
@@ -243,9 +251,9 @@ export default async function AssignmentPage({
 
 function Stat({ value, label }: { value: number; label: string }) {
   return (
-    <div className="rounded-md border border-border p-3">
+    <Card className="p-3">
       <p className="text-2xl font-semibold tabular-nums">{value}</p>
       <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
-    </div>
+    </Card>
   );
 }

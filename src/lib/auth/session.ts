@@ -33,15 +33,27 @@ const COOKIE_OPTIONS = {
  * request instead of repeating both four or five times.
  */
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+  const result = await lookupSession();
+  return result.status === "signed-in" ? result.user : null;
+});
+
+/**
+ * The same lookup, but it says *why* there is no user.
+ *
+ * "Not signed in" and "the database is down" have to be told apart: a route
+ * that clears an unusable session cookie must not mistake a database outage
+ * for an expired session and sign the person out.
+ */
+export const lookupSession = cache(async (): Promise<SessionLookup> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) return null;
+  if (!token) return { status: "signed-out" };
 
   const uid = await resolveUid(token);
-  if (!uid) return null;
+  if (uid.status !== "ok") return uid;
 
   try {
-    return await prisma.user.findUnique({
-      where: { id: uid },
+    const user = await prisma.user.findUnique({
+      where: { id: uid.uid },
       select: {
         id: true,
         email: true,
@@ -51,29 +63,67 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
         isAdmin: true,
       },
     });
+    if (!user) return { status: "invalid" };
+    return { status: "signed-in", user };
   } catch (error) {
     // A missing or unreachable database must read as "signed out", never a 500.
     console.error("[auth] Could not load the current user", error);
-    return null;
+    return { status: "unavailable" };
   }
 });
 
-async function resolveUid(token: string): Promise<string | null> {
+export type SessionLookup =
+  | { status: "signed-out" }
+  | { status: "signed-in"; user: SessionUser }
+  | { status: "invalid" }
+  | { status: "unavailable" };
+
+/**
+ * The Firebase errors that mean the cookie itself is no good.
+ *
+ * Anything else — a network failure, a configuration problem — is a fault on
+ * this side of the connection, and treating it as a rejected session would
+ * sign people out because of a bad afternoon at Google's end.
+ */
+const REJECTED_SESSION_CODES = new Set([
+  "auth/session-cookie-revoked",
+  "auth/id-token-expired",
+  "auth/invalid-session-cookie",
+  "auth/user-disabled",
+  "auth/invalid-credential",
+  "auth/argument-error",
+]);
+
+async function resolveUid(
+  token: string,
+): Promise<
+  { status: "ok"; uid: string } | { status: "invalid" } | { status: "unavailable" }
+> {
   if (isFirebaseAdminConfigured()) {
     const auth = await getAdminAuth();
-    if (!auth) return null;
+    if (!auth) return { status: "unavailable" };
     try {
       // `true` checks the token against revoked sessions — this is what makes
       // sign-out on one device take effect on the others.
       const decoded = await auth.verifySessionCookie(token, true);
-      return decoded.uid;
-    } catch {
-      return null;
+      return { status: "ok", uid: decoded.uid };
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "";
+      if (REJECTED_SESSION_CODES.has(code)) return { status: "invalid" };
+      console.error("[auth] Could not verify the session cookie", error);
+      return { status: "unavailable" };
     }
   }
 
-  if (isDevAuthEnabled()) return verifyDevToken(token);
-  return null;
+  if (isDevAuthEnabled()) {
+    const uid = verifyDevToken(token);
+    return uid ? { status: "ok", uid } : { status: "invalid" };
+  }
+
+  return { status: "invalid" };
 }
 
 // ---------------------------------------------------------------------------

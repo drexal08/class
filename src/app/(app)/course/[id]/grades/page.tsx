@@ -44,7 +44,7 @@ export default async function GradesPage({
 
     return (
       <div className="container-feed py-6">
-        <h1 className="text-xl font-semibold tracking-tight">Your grades</h1>
+        <h2 className="text-xl font-semibold tracking-tight">Your grades</h2>
 
         <Card className="mt-4 overflow-hidden">
           <ul className="divide-y divide-border">
@@ -103,7 +103,7 @@ export default async function GradesPage({
 
   return (
     <div className="container-page py-6">
-      <h1 className="mb-4 text-xl font-semibold tracking-tight">Gradebook</h1>
+      <h2 className="mb-4 text-xl font-semibold tracking-tight">Gradebook</h2>
       <GradebookTable
         courseId={id}
         courseName={course.name}

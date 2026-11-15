@@ -54,7 +54,7 @@ export default async function StreamPage({
         <div className="min-w-0 space-y-4">
           {course.description && (
             <Card className="p-5">
-              <h2 className="text-sm font-medium text-muted-foreground">
+              <h2 className="text-lg font-semibold tracking-tight">
                 About this class
               </h2>
               <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">
@@ -97,7 +97,7 @@ export default async function StreamPage({
 
         <aside className="space-y-4">
           <Card className="p-5">
-            <h2 className="flex items-center gap-2 text-sm font-medium">
+            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
               <CalendarClock
                 className="size-4 text-muted-foreground"
                 strokeWidth={1.75}

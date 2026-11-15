@@ -42,9 +42,9 @@ export default async function GradePage({
               Back to assignment
             </Link>
           </Button>
-          <h1 className="mt-2 text-xl font-semibold tracking-tight">
+          <h2 className="mt-2 text-xl font-semibold tracking-tight">
             {data.assignment.title}
-          </h1>
+          </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {data.counts.turnedIn} of {data.counts.total} turned in ·{" "}
             {data.counts.graded} graded

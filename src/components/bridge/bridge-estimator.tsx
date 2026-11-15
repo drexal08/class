@@ -233,9 +233,9 @@ export function BridgeEstimator({
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
             CLA Bridge
           </p>
-          <h1 className="mt-3 text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
+          <h1 className="mt-3 text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl">
             <span className="block">Hello {ownerName}</span>
-            <span className="mt-1 block text-2xl text-muted-foreground sm:text-3xl">
+            <span className="mt-1 block text-xl text-muted-foreground sm:text-2xl">
               {identity ? `${identity}, ` : ""}ready to track your progress?
             </span>
           </h1>
@@ -283,14 +283,14 @@ export function BridgeEstimator({
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-            Core subjects <span className="text-foreground">×7 each</span>
+          <h2 className="text-sm font-semibold">
+            Core subjects <span className="text-muted-foreground">×7 each</span>
           </h2>
           <div className="mt-4 space-y-3">
             {subjects.slice(0, combo.cores.length).map(renderSubjectRow)}
           </div>
 
-          <h2 className="mt-10 text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+          <h2 className="mt-10 text-sm font-semibold">
             Subsidiaries
           </h2>
           <p className="mt-2 text-xs text-muted-foreground">

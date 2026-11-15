@@ -291,9 +291,9 @@ export function EditAssignmentForm({
       </Card>
 
       <Card className="p-6">
-        <h2 className="font-medium">
+        <h3 className="text-base font-semibold leading-tight tracking-tight">
           {assignment.published ? "Visible to students" : "Draft"}
-        </h2>
+        </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {assignment.published
             ? "Students can see this and turn work in."
@@ -325,7 +325,9 @@ export function EditAssignmentForm({
       </Card>
 
       <Card className="border-destructive/30 p-6">
-        <h2 className="font-medium text-destructive">Delete this classwork</h2>
+        <h3 className="text-base font-semibold leading-tight tracking-tight text-destructive">
+          Delete this classwork
+        </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           This removes the item along with every submission, grade and comment on
           it. It cannot be undone.

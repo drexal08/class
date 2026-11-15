@@ -66,10 +66,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
-  ],
+  themeColor: "#f8fafc",
   width: "device-width",
   initialScale: 1,
 };
@@ -78,8 +75,8 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} min-h-screen antialiased`}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <body className="font-sans min-h-screen antialiased">
         {/* Keyboard users land here first and can jump past the header. */}
         <a
           href="#main"

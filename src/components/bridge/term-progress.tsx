@@ -67,7 +67,7 @@ export function TermProgress({
 
   return (
     <section aria-label="Overall progress" className="mt-10 border-t border-border pt-8">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+      <h2 className="text-sm font-semibold">
         Your term progress
       </h2>
       <div className="mt-5 grid grid-cols-2 gap-4">

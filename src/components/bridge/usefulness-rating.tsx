@@ -15,7 +15,7 @@ export function UsefulnessRating({
 }) {
   return (
     <section aria-label="App usefulness" className="mt-10 border-t border-border pt-6">
-      <h2 className="text-sm font-semibold text-foreground">
+      <h2 className="text-sm font-semibold">
         How useful has CLA Bridge been for you?
       </h2>
       <fieldset className="mt-3 flex gap-2" aria-label="Usefulness rating">

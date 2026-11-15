@@ -74,7 +74,7 @@ export function UserDirectory({
                   <div className="flex items-center gap-3">
                     <UserAvatar user={user} className="size-8 shrink-0" />
                     <div className="min-w-0">
-                      <p className="truncate font-medium">
+                      <p className="truncate text-sm font-medium">
                         {displayNameOf(user)}
                         {user.id === viewerId && (
                           <Badge variant="outline" className="ml-2">
@@ -119,7 +119,11 @@ export function UserDirectory({
                       })
                     }
                   >
-                    <SelectTrigger size="sm" className="w-32">
+                    <SelectTrigger
+                      size="sm"
+                      className="w-32"
+                      aria-label={`Role for ${displayNameOf(user)}`}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

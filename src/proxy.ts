@@ -26,7 +26,32 @@ const PROTECTED_PREFIXES = [
   "/settings",
   "/join",
 ];
-const AUTH_ROUTES = ["/login", "/register"];
+
+/**
+ * The signed-out landing page.
+ *
+ * Signed-in visitors are sent to their dashboard from here rather than from
+ * the page itself. The page used to look up the visitor in the database to
+ * decide, which meant every anonymous request waited on a live query against a
+ * database that scales to zero. The cookie check below is free, so the landing
+ * page stays a static document served from the CDN.
+ *
+ * A cookie that turns out to be expired or revoked cannot be spotted from
+ * here, so the visitor is handed to `/api/auth/landing`, which verifies it for
+ * real and either continues to the dashboard or clears it and puts the visitor
+ * back on the landing page. Anonymous visitors never go there at all.
+ */
+const LANDING_ROUTE = "/";
+const LANDING_CHECK_ROUTE = "/api/auth/landing";
+
+/**
+ * Set for a few seconds after `/api/auth/landing` has looked at a session
+ * cookie and could not clear it.
+ *
+ * Without it, a visitor whose cookie is fine but whose database is down would
+ * be sent round the same loop for as long as the cookie lives.
+ */
+const LANDING_CHECKED_COOKIE = "__landing_checked";
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -43,8 +68,15 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (hasSession && AUTH_ROUTES.includes(pathname)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (hasSession && pathname === LANDING_ROUTE) {
+    const justChecked = Boolean(
+      request.cookies.get(LANDING_CHECKED_COOKIE)?.value,
+    );
+    if (!justChecked) {
+      const url = new URL(LANDING_CHECK_ROUTE, request.url);
+      url.searchParams.set("next", `${pathname}${search}`);
+      return NextResponse.redirect(url);
+    }
   }
 
   return NextResponse.next();
@@ -52,6 +84,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
     "/dashboard/:path*",
     "/course/:path*",
     "/admin/:path*",
@@ -60,7 +93,5 @@ export const config = {
     "/archived/:path*",
     "/settings/:path*",
     "/join/:path*",
-    "/login",
-    "/register",
   ],
 };

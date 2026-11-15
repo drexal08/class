@@ -74,7 +74,9 @@ export function SubmitWorkPanel({
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-medium">Your work</h2>
+        <h3 className="text-base font-semibold leading-tight tracking-tight">
+          Your work
+        </h3>
         <Badge variant="outline" className={cn(SUBMISSION_TONES[status])}>
           {SUBMISSION_LABELS[status]}
         </Badge>
@@ -108,9 +110,9 @@ export function SubmitWorkPanel({
         <div className="mt-4 space-y-4">
           {submission?.content && (
             <div>
-              <h3 className="text-xs font-medium text-muted-foreground">
+              <h4 className="text-sm font-semibold tracking-tight">
                 Your response
-              </h3>
+              </h4>
               <p className="mt-1.5 rounded-md bg-secondary p-3 text-sm whitespace-pre-wrap">
                 {submission.content}
               </p>
@@ -119,9 +121,9 @@ export function SubmitWorkPanel({
 
           {submission && submission.attachments.length > 0 && (
             <div>
-              <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
+              <h4 className="mb-1.5 text-sm font-semibold tracking-tight">
                 Attached
-              </h3>
+              </h4>
               <AttachmentList
                 attachments={submission.attachments}
                 courseId={courseId}
@@ -137,9 +139,9 @@ export function SubmitWorkPanel({
             <>
               <Separator />
               <div>
-                <h3 className="text-xs font-medium text-muted-foreground">
+                <h4 className="text-sm font-semibold tracking-tight">
                   Teacher feedback
-                </h3>
+                </h4>
                 <p className="mt-1.5 rounded-md border border-border p-3 text-sm whitespace-pre-wrap">
                   {submission.feedback}
                 </p>
@@ -179,9 +181,9 @@ export function SubmitWorkPanel({
         <div className="mt-4 space-y-3">
           {submission?.content && (
             <div>
-              <h3 className="text-xs font-medium text-muted-foreground">
+              <h4 className="text-sm font-semibold tracking-tight">
                 Your response
-              </h3>
+              </h4>
               <p className="mt-1.5 rounded-md bg-secondary p-3 text-sm whitespace-pre-wrap">
                 {submission.content}
               </p>
@@ -190,9 +192,9 @@ export function SubmitWorkPanel({
 
           {submission && submission.attachments.length > 0 && (
             <div>
-              <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
+              <h4 className="mb-1.5 text-sm font-semibold tracking-tight">
                 Attached
-              </h3>
+              </h4>
               <AttachmentList
                 attachments={submission.attachments}
                 courseId={courseId}
@@ -225,9 +227,9 @@ export function SubmitWorkPanel({
 
           {submission && submission.attachments.length > 0 && (
             <div>
-              <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
+              <h4 className="mb-1.5 text-sm font-semibold tracking-tight">
                 Attached
-              </h3>
+              </h4>
               <AttachmentList
                 attachments={submission.attachments}
                 courseId={courseId}
@@ -254,7 +256,9 @@ export function SubmitWorkPanel({
 
       {submission && (
         <div className="mt-5 border-t border-border pt-4">
-          <h3 className="text-sm font-medium">Private comments</h3>
+          <h4 className="text-sm font-semibold tracking-tight">
+            Private comments
+          </h4>
           <p className="mb-3 text-xs text-muted-foreground">
             Only you and your teacher can see these.
           </p>

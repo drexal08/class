@@ -29,7 +29,7 @@ export function BridgeLevelPicker({ isAdmin }: { isAdmin: boolean }) {
       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
         CLA Bridge
       </p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight">
         Which level are you in?
       </h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">

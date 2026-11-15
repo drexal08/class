@@ -124,19 +124,37 @@ export function formatFileSize(bytes?: number | null): string {
  * Muted accent tokens for course identity.
  *
  * The PRD forbids bright saturated colour, so a course is identified by a
- * restrained slate-family hue used only as a thin rule or small chip — never as
+ * restrained slate-family tone used only as a thin rule or small chip — never as
  * a large filled surface.
+ *
+ * The tones are a ladder: `slate`/`stone` are the darkest, `*-light` sit in the
+ * middle and `*-pale` are the lightest. Six steps give each class a face of
+ * its own without introducing a second, competing palette.
  */
 export const COURSE_ACCENTS = [
   "slate",
   "stone",
-  "teal",
-  "indigo",
-  "amber",
-  "rose",
+  "slate-light",
+  "stone-light",
+  "slate-pale",
+  "stone-pale",
 ] as const;
 
 export type CourseAccent = (typeof COURSE_ACCENTS)[number];
+
+/**
+ * Accent names that older rows may still carry.
+ *
+ * The column used to hold hue names. They are legacy labels only: each one
+ * maps onto the nearest tone in the ladder, so an old row still renders in the
+ * neutral palette instead of bringing a colour back.
+ */
+const LEGACY_ACCENTS: Record<string, CourseAccent> = {
+  teal: "slate-light",
+  indigo: "stone-light",
+  amber: "slate-pale",
+  rose: "stone-pale",
+};
 
 export function randomAccent(): CourseAccent {
   return COURSE_ACCENTS[Math.floor(Math.random() * COURSE_ACCENTS.length)];
@@ -160,37 +178,41 @@ export const ACCENT_CLASSES: Record<
   { rule: string; chip: string; avatar: string }
 > = {
   slate: {
-    rule: "bg-slate-400",
-    chip: "bg-slate-100 text-slate-700 border-slate-200",
+    rule: "bg-slate-600",
+    chip: "bg-secondary text-secondary-foreground border-border",
     avatar: "bg-slate-600 text-white",
   },
   stone: {
-    rule: "bg-stone-400",
-    chip: "bg-stone-100 text-stone-700 border-stone-200",
+    rule: "bg-stone-600",
+    chip: "bg-secondary text-secondary-foreground border-border",
     avatar: "bg-stone-600 text-white",
   },
-  teal: {
-    rule: "bg-teal-500",
-    chip: "bg-teal-50 text-teal-700 border-teal-200",
-    avatar: "bg-teal-700 text-white",
+  "slate-light": {
+    rule: "bg-slate-500",
+    chip: "bg-secondary text-secondary-foreground border-border",
+    avatar: "bg-slate-500 text-white",
   },
-  indigo: {
-    rule: "bg-indigo-500",
-    chip: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    avatar: "bg-indigo-700 text-white",
+  "stone-light": {
+    rule: "bg-stone-500",
+    chip: "bg-secondary text-secondary-foreground border-border",
+    avatar: "bg-stone-500 text-white",
   },
-  amber: {
-    rule: "bg-amber-500",
-    chip: "bg-amber-50 text-amber-800 border-amber-200",
-    avatar: "bg-amber-700 text-white",
+  "slate-pale": {
+    rule: "bg-slate-400",
+    chip: "bg-secondary text-secondary-foreground border-border",
+    avatar: "bg-slate-300 text-slate-900",
   },
-  rose: {
-    rule: "bg-rose-400",
-    chip: "bg-rose-50 text-rose-700 border-rose-200",
-    avatar: "bg-rose-700 text-white",
+  "stone-pale": {
+    rule: "bg-stone-400",
+    chip: "bg-secondary text-secondary-foreground border-border",
+    avatar: "bg-stone-300 text-stone-900",
   },
 };
 
 export function accentClasses(accent: string | null | undefined) {
-  return ACCENT_CLASSES[(accent as CourseAccent) ?? "slate"] ?? ACCENT_CLASSES.slate;
+  if (!accent) return ACCENT_CLASSES.slate;
+  const direct = ACCENT_CLASSES[accent as CourseAccent];
+  if (direct) return direct;
+  const legacy = LEGACY_ACCENTS[accent];
+  return legacy ? ACCENT_CLASSES[legacy] : ACCENT_CLASSES.slate;
 }

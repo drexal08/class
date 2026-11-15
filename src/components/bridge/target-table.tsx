@@ -134,12 +134,12 @@ export function TargetTable({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-4 py-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             {mode === "target"
               ? "Targeted term average"
               : "Term average from this table"}
           </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {overall
               ? `${overall.columns} of ${TARGET_COLUMNS.length} columns recorded · earned column averages / 400 × 100.`
               : "Fill a column and its average joins this total automatically."}
@@ -156,10 +156,10 @@ export function TargetTable({
       {mode === "average" && !eotFilled && (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-warning/50 bg-card px-4 py-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               No EOT yet? Set a target
             </p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {requiredEot === null
                 ? "Enter the term average you wish to get, and the EOT marks you need appear here."
                 : requiredEot > 100

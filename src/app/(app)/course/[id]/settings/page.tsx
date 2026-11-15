@@ -21,9 +21,9 @@ export default async function CourseSettingsPage({
 
   return (
     <div className="container-feed py-6">
-      <h1 className="mb-6 text-xl font-semibold tracking-tight">
+      <h2 className="mb-6 text-xl font-semibold tracking-tight">
         Class settings
-      </h1>
+      </h2>
       <CourseSettingsForm course={course} />
     </div>
   );

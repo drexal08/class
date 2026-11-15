@@ -231,7 +231,7 @@ export function GradingWorkspace({
 
             <Separator className="my-5" />
 
-            <h2 className="sr-only">Submitted work for {assignmentTitle}</h2>
+            <h3 className="sr-only">Submitted work for {assignmentTitle}</h3>
 
             {selected.submission?.content ? (
               <div className="rounded-md bg-secondary p-4 text-sm leading-relaxed whitespace-pre-wrap">
@@ -327,7 +327,9 @@ function GradePanel({
   if (!row.submission) {
     return (
       <Card className="p-5">
-        <h2 className="font-medium">Grade</h2>
+        <h3 className="text-base font-semibold leading-tight tracking-tight">
+          Grade
+        </h3>
         <p className="mt-2 text-sm text-muted-foreground">
           This student has not opened the assignment, so there is no work to
           show. You can still record a grade for missing work.
@@ -488,7 +490,9 @@ function GradePanel({
       </Card>
 
       <Card className="p-5">
-        <h2 className="text-sm font-medium">Private comments</h2>
+        <h3 className="text-base font-semibold leading-tight tracking-tight">
+          Private comments
+        </h3>
         <p className="mb-3 text-xs text-muted-foreground">
           Only this student can see these.
         </p>
