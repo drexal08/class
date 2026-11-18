@@ -63,6 +63,10 @@ enum NotificationType {
   WORK_SUBMITTED
   GRADE_RETURNED
   ENROLLED
+  /// [+] A student asked for an authorized absence.
+  ABSENCE_REQUESTED
+  /// [+] A teacher answered that request.
+  ABSENCE_DECIDED
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +95,15 @@ model User {
   bridgeProfile   BridgeProfile?
   bridgeEstimates BridgeEstimate[]
   claimedBridgeLegacy BridgeLegacyStudent? @relation("ClaimedBridgeLegacy")
+
+  // [+] School records
+  attendanceRecords  AttendanceRecord[]
+  markedSessions     AttendanceSession[]  @relation("MarkedAttendanceSessions")
+  attendanceRequests AttendanceRequest[]  @relation("StudentAttendanceRequests")
+  decidedRequests    AttendanceRequest[]  @relation("DecidedAttendanceRequests")
+  gradeScores        GradeScore[]
+  authoredReports    ReportComment[]      @relation("AuthoredReportComments")
+  studentReports     ReportComment[]      @relation("StudentReportComments")
 
   @@index([role])
   @@index([isAdmin])
@@ -211,6 +224,14 @@ model Course {
   topics        Topic[]
   notifications Notification[]
 
+  // [+] School records
+  schedules          CourseSchedule[]
+  attendanceSessions AttendanceSession[]
+  attendanceRequests AttendanceRequest[]
+  gradeCategories    GradeCategory[]
+  gradeItems         GradeItem[]
+  reportComments     ReportComment[]
+
   @@index([teacherId])
   @@index([archived])
 }
@@ -300,6 +321,7 @@ model Assignment {
   attachments Attachment[]
   rubric      RubricCriterion[] // [+] Module D — "rubric breakdown"
   comments    Comment[]
+  gradeItem   GradeItem?
 
   @@index([courseId, createdAt])
   @@index([topicId])
@@ -425,4 +447,191 @@ model Attachment {
   @@index([assignmentId])
   @@index([submissionId])
   @@index([uploadedById])
+}
+
+// ---------------------------------------------------------------------------
+// + School records — terms, gradebook, attendance, schedule
+//
+// These are first-class LMS Core models. They have no relationship to any
+// external school system: a teacher enters marks and attendance here, and a
+// student reads what is stored here.
+// ---------------------------------------------------------------------------
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  LEFT_EARLY
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+/// [+] A reporting period. Exactly one term should be `isActive` at a time.
+model Term {
+  id           String   @id @default(cuid())
+  academicYear String // "2026-2027"
+  name         String // "Term 1"
+  startsOn     DateTime
+  endsOn       DateTime
+  isActive     Boolean  @default(false)
+
+  gradeCategories GradeCategory[]
+  gradeItems      GradeItem[]
+  reportComments  ReportComment[]
+
+  @@unique([academicYear, name])
+  @@index([isActive])
+}
+
+/// [+] A recurring weekly slot. Courses meet on a pattern, not on dates.
+model CourseSchedule {
+  id       String  @id @default(cuid())
+  courseId String
+  /// 0 = Monday … 6 = Sunday
+  weekday  Int
+  /// School-local wall clock, "HH:mm".
+  startsAt String
+  endsAt   String
+  room     String?
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, weekday])
+}
+
+/// [+] One register: a course on a date (and period, when it meets twice).
+model AttendanceSession {
+  id         String   @id @default(cuid())
+  courseId   String
+  /// Date-only value stored at UTC midnight; never carries a time of day.
+  date       DateTime
+  /// Set only when the course meets more than once on the same date.
+  period     String?
+  topic      String?
+  markedById String
+  markedAt   DateTime @default(now())
+
+  course   Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  markedBy User               @relation("MarkedAttendanceSessions", fields: [markedById], references: [id])
+  records  AttendanceRecord[]
+
+  @@unique([courseId, date, period])
+  @@index([courseId, date])
+}
+
+model AttendanceRecord {
+  id          String           @id @default(cuid())
+  sessionId   String
+  studentId   String
+  status      AttendanceStatus
+  note        String?
+  minutesLate Int?
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@index([status])
+}
+
+/// [+] A student's request for an authorized absence. Approving it never writes
+/// attendance records — the teacher's register stays the source of truth.
+model AttendanceRequest {
+  id           String        @id @default(cuid())
+  courseId     String
+  studentId    String
+  fromDate     DateTime
+  toDate       DateTime
+  reason       String
+  status       RequestStatus @default(PENDING)
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime      @default(now())
+
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student   User   @relation("StudentAttendanceRequests", fields: [studentId], references: [id], onDelete: Cascade)
+  decidedBy User?  @relation("DecidedAttendanceRequests", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([courseId, status])
+  @@index([studentId])
+}
+
+/// [+] A weighted bucket of grade items, e.g. "Coursework" 40, "Tests" 60.
+/// Weights are validated in the application layer to sum to 100 per course + term.
+model GradeCategory {
+  id       String @id @default(cuid())
+  courseId String
+  termId   String
+  name     String
+  weight   Int
+
+  course Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  term   Term        @relation(fields: [termId], references: [id], onDelete: Cascade)
+  items  GradeItem[]
+
+  @@unique([courseId, termId, name])
+  @@index([courseId, termId])
+}
+
+/// [+] One graded column. `assignmentId` links it to classwork so a graded
+/// submission feeds the same average instead of creating a second gradebook.
+model GradeItem {
+  id           String   @id @default(cuid())
+  courseId     String
+  termId       String
+  categoryId   String
+  title        String
+  maximum      Decimal  @db.Decimal(6, 2)
+  assessedOn   DateTime
+  assignmentId String?  @unique
+
+  course     Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  term       Term           @relation(fields: [termId], references: [id], onDelete: Cascade)
+  category   GradeCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  assignment Assignment?    @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  scores     GradeScore[]
+
+  @@unique([courseId, termId, title, assessedOn])
+  @@index([courseId, termId])
+  @@index([categoryId])
+}
+
+/// [+] A score is nullable on purpose: "not marked" is not zero.
+model GradeScore {
+  id          String   @id @default(cuid())
+  gradeItemId String
+  studentId   String
+  score       Decimal? @db.Decimal(6, 2)
+
+  gradeItem GradeItem @relation(fields: [gradeItemId], references: [id], onDelete: Cascade)
+  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([gradeItemId, studentId])
+  @@index([studentId])
+}
+
+/// [+] The teacher's written comment on a student's term report.
+model ReportComment {
+  id        String   @id @default(cuid())
+  courseId  String
+  termId    String
+  studentId String
+  authorId  String
+  body      String
+  updatedAt DateTime @updatedAt
+
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  term    Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+  student User   @relation("StudentReportComments", fields: [studentId], references: [id], onDelete: Cascade)
+  author  User   @relation("AuthoredReportComments", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, termId, studentId])
+  @@index([studentId])
 }

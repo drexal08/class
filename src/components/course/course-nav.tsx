@@ -20,6 +20,12 @@ export function CourseNav({
     { href: `${base}/classwork`, label: "Classwork" },
     { href: `${base}/people`, label: "People" },
     { href: `${base}/grades`, label: "Grades" },
+    ...(canManage
+      ? [
+          { href: `${base}/attendance`, label: "Attendance" },
+          { href: `${base}/reports`, label: "Reports" },
+        ]
+      : []),
     ...(canManage ? [{ href: `${base}/settings`, label: "Settings" }] : []),
   ];
 

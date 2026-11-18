@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calculator, CalendarDays, LayoutGrid, ListTodo } from "lucide-react";
+import { Calculator, CalendarCheck, CalendarDays, GraduationCap, LayoutGrid, ListTodo } from "lucide-react";
 
 import type { Role } from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
@@ -13,14 +13,23 @@ const LINKS = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
 ] as const;
 
+const STUDENT_LINKS = [
+  { href: "/grades", label: "Grades", icon: GraduationCap },
+  { href: "/attendance", label: "Attendance", icon: CalendarCheck },
+] as const;
+
 export function PrimaryNav({ role, isAdmin }: { role: Role; isAdmin: boolean }) {
   const pathname = usePathname();
   // The estimator is a student tool; admins keep access so they can inspect it.
   const showBridge = role === "STUDENT" || isAdmin;
+  // Marks and attendance are the student's own record. Teachers reach the same
+  // data per class, so these global entries would be empty for them.
+  const links =
+    role === "STUDENT" || isAdmin ? [...LINKS, ...STUDENT_LINKS] : LINKS;
 
   return (
     <nav aria-label="Main" className="flex items-center gap-1 overflow-x-auto">
-      {LINKS.map((link) => {
+      {links.map((link) => {
         const active =
           pathname === link.href ||
           (link.href === "/dashboard" && pathname.startsWith("/course"));

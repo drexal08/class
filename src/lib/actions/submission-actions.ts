@@ -13,6 +13,7 @@ import { notifyCourse } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { courseChannel, publish, userChannel } from "@/lib/realtime/server";
 import { canSubmitWork, rubricScoreError } from "@/lib/rules";
+import { materialiseAssignmentGrade } from "@/lib/school/assignment-grade";
 import type { ActionState } from "@/lib/types";
 import {
   firstIssue,
@@ -288,6 +289,8 @@ export async function gradeSubmissionAction(
     if (rubricError) return { error: rubricError };
 
     await prisma.$transaction(async (tx) => {
+      const gradedAt = new Date();
+
       await tx.submission.update({
         where: { id: submissionId },
         data: {
@@ -297,7 +300,7 @@ export async function gradeSubmissionAction(
           // already seen this work come back.
           status:
             context.submission.status === "RETURNED" ? "RETURNED" : "GRADED",
-          gradedAt: new Date(),
+          gradedAt,
         },
       });
 
@@ -326,6 +329,20 @@ export async function gradeSubmissionAction(
           update: { points: entry.points },
         });
       }
+
+      // Feed the weighted gradebook from the same mark, so a graded piece of
+      // coursework is not a second, parallel gradebook. This is a no-op when
+      // the class has no active term or no "Coursework" category.
+      await materialiseAssignmentGrade(tx, {
+        courseId: context.courseId,
+        assignmentId: context.submission.assignmentId,
+        submissionId,
+        studentId: context.submission.studentId,
+        title: context.submission.assignment.title,
+        maximum: context.submission.assignment.maxPoints,
+        grade,
+        gradedAt,
+      });
     });
 
     revalidatePath(`/course/${context.courseId}/classwork`);

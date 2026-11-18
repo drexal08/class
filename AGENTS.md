@@ -65,6 +65,31 @@ weight, a target column maximum or an import rule, update
 `docs/clabridge-port.md` and add or adjust a test so the two implementations
 cannot drift.
 
+## School records
+
+Terms, weighted grades, attendance, absence requests, the weekly timetable and
+report cards are native to LMS Core. There is no AcademicBridge dependency of any
+kind — do not add an import, sync, scrape, bookmarklet, embed or vendor call.
+
+- Domain rules and tests: `src/lib/school/*` (`grading`, `attendance`, `schedule`,
+  `validation`)
+- Reads: `src/lib/data/school.ts`
+- Actions: `src/lib/actions/{term,gradebook,attendance,schedule,report}-actions.ts`
+- UI: `src/components/school/*`, admin term manager in
+  `src/components/admin/term-manager.tsx`
+- Routes: `/course/[id]/grades`, `/grades`, `/course/[id]/attendance`,
+  `/attendance`, `/course/[id]/reports`, `/reports/[termId]`
+- Schema: `Term`, `GradeCategory`, `GradeItem`, `GradeScore`, `AttendanceSession`,
+  `AttendanceRecord`, `AttendanceRequest`, `CourseSchedule`, `ReportComment`
+- Coursework bridge: `src/lib/school/assignment-grade.ts` links a graded
+  submission to a grade item through the nullable unique `GradeItem.assignmentId`
+- Full rules (grading, attendance, absences, reconciliation fixture):
+  `docs/school-records.md`
+
+Keep the scoring and attendance behaviour identical everywhere it is displayed.
+If you change a weight rule, an attendance status rule or the coursework bridge,
+update `docs/school-records.md` and adjust the tests in `src/lib/school`.
+
 ## Environment
 
 The database is Neon, project `neon-amethyst-candle` (`floral-king-64647468`,

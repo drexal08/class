@@ -5,7 +5,9 @@ import { CalendarDays } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { getUserSchedule } from "@/lib/data/school";
 import { getCalendarItems } from "@/lib/data/todo";
+import { formatTimeRange, groupByWeekday } from "@/lib/school/schedule";
 import { ASSIGNMENT_LABELS, SUBMISSION_LABELS, SUBMISSION_TONES } from "@/lib/types";
 import { accentClasses, cn, isOverdue } from "@/lib/utils";
 
@@ -13,7 +15,15 @@ export const metadata: Metadata = { title: "Calendar" };
 export const dynamic = "force-dynamic";
 
 export default async function CalendarPage() {
-  const items = await getCalendarItems();
+  const [items, schedule] = await Promise.all([
+    getCalendarItems(),
+    getUserSchedule(),
+  ]);
+
+  // Only days that actually have a lesson, so an empty week stays short.
+  const week = groupByWeekday(schedule.slots).filter(
+    (day) => day.slots.length > 0,
+  );
 
   // Grouped by day rather than drawn as a month grid: a chronological list is
   // easier to scan and works on a phone, which is where students check it.
@@ -103,6 +113,58 @@ export default async function CalendarPage() {
             </section>
           ))}
         </div>
+      )}
+
+      {week.length > 0 && (
+        <section className="mt-12">
+          <h2 className="text-lg font-semibold tracking-tight">
+            Weekly timetable
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Classes repeat on these days. Open a class for its stream and work.
+          </p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {week.map((day) => (
+              <div key={day.weekday}>
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  {day.label}
+                </h3>
+                <Card className="mt-2 overflow-hidden">
+                  <ul className="divide-y divide-border">
+                    {day.slots.map((slot) => (
+                      <li key={slot.id}>
+                        <Link
+                          href={`/course/${slot.courseId}`}
+                          className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-secondary/50"
+                        >
+                          <span
+                            className={cn(
+                              "h-6 w-1 shrink-0 rounded-full",
+                              accentClasses(slot.course.accent).rule,
+                            )}
+                            aria-hidden
+                          />
+                          <span className="w-32 shrink-0 text-xs text-muted-foreground tabular-nums">
+                            {formatTimeRange(slot.startsAt, slot.endsAt)}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-sm">
+                            {slot.course.name}
+                          </span>
+                          {slot.room && (
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {slot.room}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );
