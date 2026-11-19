@@ -136,5 +136,7 @@ Two constraints follow from that target and must not be undone:
   cookie-conditioned `beforeFiles` rewrite in `next.config.ts`. Adding a proxy
   back makes `npm run deploy:workers` fail.
 - **`patches/@opennextjs+aws+4.0.2.patch`** (applied by `postinstall`) passes
-  `"junction"` to `symlinkSync` on Windows, which needs no privilege there. Do
-  not drop it while OpenNext still only ships symlinks.
+  `"junction"` to `symlinkSync` on Windows, which needs no privilege there, and
+  **`patches/@opennextjs+cloudflare+1.20.1.patch`** stops the generated wasm
+  loader from pasting unescaped Windows paths into JS source. Do not drop them
+  while OpenNext still does either thing; both are no-ops on Linux.

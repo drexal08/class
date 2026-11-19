@@ -41,11 +41,20 @@ Authenticate once:
 ```sh
 npx wrangler login
 # or, in CI:
-#   CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=...
+#   CLOUDFLARE_API_TOKEN=...
 ```
 
-`wrangler.jsonc` deliberately does **not** hardcode an account id. Wrangler uses
-the logged-in account, or `CLOUDFLARE_ACCOUNT_ID` when several are available.
+`wrangler.jsonc` pins `name` (`class`) and `account_id` (the `core` account,
+workers.dev subdomain `2core`), the same way `clabridge`'s does. The Worker is
+served at `https://class.2core.workers.dev`. Pinning the account means a deploy
+cannot land in the wrong account when several are logged in; the name must match
+the Worker that already exists, because Wrangler deploys to it by name.
+
+The config deliberately has **no** `services` / `WORKER_SELF_REFERENCE`
+binding. OpenNext only uses that binding for its Durable Object queue (cache
+revalidation), which this app does not configure, and pointing it at a Worker
+name that does not exist fails the whole deploy with
+`references Worker 'x' which was not found`.
 
 ### Scripts
 
@@ -67,7 +76,7 @@ only holds non-secret defaults (`NEXTJS_ENV`, `DEPLOYMENT_TARGET`).
 
 ### Building on Windows
 
-OpenNext officially targets Linux and says so at the start of every build. Two
+OpenNext officially targets Linux and says so at the start of every build. Three
 things follow:
 
 - The bundle is produced by copying Next's standalone output, which contains
@@ -77,21 +86,31 @@ things follow:
   `patches/@opennextjs+aws+4.0.2.patch` passes `"junction"` on `win32`. It is
   applied by `postinstall` through `patch-package`; without it the build dies
   with `EPERM: operation not permitted, symlink`.
+- OpenNext rewrites Turbopack's wasm loader into a switch of literal
+  `import()` paths, and it used to paste the absolute path into the generated
+  source unescaped. On Windows that produced `C:\Users\...` with `\n`, `\U`
+  and friends turning into control characters, so `wrangler` could not resolve
+  `resvg.wasm` and `yoga.wasm` (used by `src/app/opengraph-image.tsx`).
+  `patches/@opennextjs+cloudflare+1.20.1.patch` emits the paths with
+  `JSON.stringify` and builds the switch keys with forward slashes. On Linux
+  the generated code is byte-for-byte what it was, so this changes nothing
+  there.
 - `wrangler dev` / `preview` must execute `workerd.exe`. On a machine where
   execution of that binary is blocked, the only local alternatives are
   Developer Mode or WSL. When neither is available, build and deploy in CI —
   `.github/workflows/deploy-workers.yml` does exactly that on `ubuntu-latest`.
 
-On Linux the patch is a no-op: `"junction"` is only passed on `win32`.
+Both patches are no-ops on Linux.
 
 ### CI
 
 `.github/workflows/deploy-workers.yml` runs on `main` pushes (and on demand),
 runs the gates, builds with OpenNext and deploys. It needs
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository secrets,
+`CLOUDFLARE_API_TOKEN` as a repository secret,
 `NEXT_PUBLIC_*` values as repository variables (they are inlined at build time),
-and the runtime values as Worker secrets. Migrations run only when the manual
-dispatch sets `run_migrations`.
+and the runtime values as Worker secrets. The account id comes from
+`wrangler.jsonc`, so no `CLOUDFLARE_ACCOUNT_ID` secret is needed. Migrations run
+only when the manual dispatch sets `run_migrations`.
 
 ### Environment variables
 
@@ -133,7 +152,7 @@ Point `DATABASE_URL` at Neon's **pooled** endpoint. For higher traffic, put
 Cloudflare Hyperdrive in front of Neon:
 
 ```sh
-npx wrangler hyperdrive create lms-core \
+npx wrangler hyperdrive create class \
   --connection-string="postgresql://...-pooler..."
 ```
 
@@ -196,8 +215,10 @@ add one if you want long-lived immutable caching for `/_next/static/*`.
 - **Caching**: every authenticated route is `force-dynamic`; no R2 incremental
   cache is configured. Add one in `open-next.config.ts` if ISR/SSG is
   introduced.
-- **Bundle size**: Workers have a compressed size limit (3 MB free / 10 MB
-  paid). `firebase-admin`, the AWS SDK and Prisma all inflate the server
-  bundle; if a deploy fails on size, check the plan before splitting routes.
+- **Bundle size**: the built Worker is ~24 MiB raw / **~5.1 MiB gzip**, because
+  Prisma, `pg`, `firebase-admin`, the AWS SDK and the `next/og` wasm binaries
+  all ship in the server bundle. The Free plan caps a Worker at 3 MiB gzip, so
+  **deploying this app needs a paid Workers plan** (10 MB). Re-measure with
+  `npx wrangler deploy --dry-run` after big dependency changes.
 - **Local dev**: `npm run dev` stays on Node. Use `npm run preview:workers` to
   test the workerd path.

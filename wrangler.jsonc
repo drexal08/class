@@ -1,6 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "lms-core",
+  // Must match the Worker in the dashboard: `class`, served at
+  // https://class.2core.workers.dev. `wrangler deploy` fails if this names a
+  // Worker that does not exist.
+  "name": "class",
+  // Pinned like clabridge's config so a deploy cannot land in the wrong account
+  // when several are available on the machine.
+  "account_id": "3e7aa377fa5d97b06247985e3b08ad21",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-11-18",
   "compatibility_flags": [
@@ -13,13 +19,10 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS",
   },
-  "services": [
-    {
-      "binding": "WORKER_SELF_REFERENCE",
-      // Must match the "name" above.
-      "service": "lms-core",
-    },
-  ],
+  // No `services`/WORKER_SELF_REFERENCE binding on purpose. OpenNext uses it
+  // only for its Durable Object queue (cache revalidation), which this app does
+  // not configure, and a self-reference to a Worker that does not exist is a
+  // hard deploy failure ("references Worker 'x' which was not found").
   "observability": {
     "enabled": true,
   },

@@ -1,0 +1,51 @@
+diff --git a/node_modules/@opennextjs/cloudflare/dist/cli/build/patches/plugins/turbopack.js b/node_modules/@opennextjs/cloudflare/dist/cli/build/patches/plugins/turbopack.js
+index 4f0e134..74ee43b 100644
+--- a/node_modules/@opennextjs/cloudflare/dist/cli/build/patches/plugins/turbopack.js
++++ b/node_modules/@opennextjs/cloudflare/dist/cli/build/patches/plugins/turbopack.js
+@@ -242,13 +242,24 @@ ${inlineChunksFn(tracedFiles)}\n${loadWasmChunkFn(tracedFiles)}`;
+         },
+     ],
+ };
++/**
++ * Turn an absolute path into the key Turbopack looks a chunk up by, which is
++ * the path below `.next/` with forward slashes.
++ *
++ * Windows paths use backslashes, so the old `replace(/.*\/\.next\//, "")` never
++ * matched there and the key kept the whole absolute path. Normalising here also
++ * means the generated source only ever holds forward slashes.
++ */
++function toChunkKey(absPath) {
++    return absPath.replace(/.*[\\/]\.next[\\/]/, "").replace(/\\/g, "/");
++}
+ function getInlinableChunks(tracedFiles) {
+     const chunks = new Set();
+     for (const file of tracedFiles) {
+         if (file === "[turbopack]_runtime.js") {
+             continue;
+         }
+-        if (file.includes(".next/server/chunks/")) {
++        if (/[\\/]\.next[\\/]server[\\/]chunks[\\/]/.test(file)) {
+             chunks.add(file);
+         }
+     }
+@@ -261,9 +272,9 @@ function inlineChunksFn(tracedFiles) {
+   function requireChunk(chunkPath) {
+     switch(chunkPath) {
+ ${chunks
+-        .map((chunk) => `      case "${
++        .map((chunk) => `      case ${JSON.stringify(
+     // we only want the path after /path/to/.next/
+-    chunk.replace(/.*\/\.next\//, "")}": return require("${chunk}");`)
++    toChunkKey(chunk))}: return require(${JSON.stringify(chunk)});`)
+         .join("\n")}
+       default:
+         throw new Error(\`Not found \${chunkPath}\`);
+@@ -283,7 +294,7 @@ export function loadWasmChunkFn(tracedFiles) {
+     const wasmFiles = tracedFiles.filter((f) => f.endsWith(".wasm"));
+     const cases = wasmFiles
+         .map((absPath) => ({ absPath, relPath: absPath.replace(/.*\/\.next\//, "") }))
+-        .map(({ absPath, relPath }) => `      case "${relPath}": return (await import("${absPath}")).default;`)
++        .map(({ absPath, relPath }) => `      case ${JSON.stringify(toChunkKey(absPath))}: return (await import(${JSON.stringify(absPath)})).default;`)
+         .join("\n");
+     return `
+   async function loadWasmChunk(chunkPath) {

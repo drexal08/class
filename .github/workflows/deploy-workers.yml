@@ -7,7 +7,6 @@
 #
 # Required repository secrets:
 #   CLOUDFLARE_API_TOKEN   - Workers Scripts:Edit + Workers KV/R2 as needed
-#   CLOUDFLARE_ACCOUNT_ID  - the account that owns the Worker
 #
 # Runtime variables (DATABASE_URL, FIREBASE_SERVICE_ACCOUNT_KEY, PUSHER_*,
 # S3_*/AWS_*, SCHOOL_TIMEZONE) are Worker secrets, not build inputs — set them
@@ -92,4 +91,3 @@ jobs:
         run: npx opennextjs-cloudflare deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
