@@ -97,20 +97,23 @@ things follow:
   there.
 - `wrangler dev` / `preview` must execute `workerd.exe`. On a machine where
   execution of that binary is blocked, the only local alternatives are
-  Developer Mode or WSL. When neither is available, build and deploy in CI —
-  `.github/workflows/deploy-workers.yml` does exactly that on `ubuntu-latest`.
+  Developer Mode or WSL. When neither is available, let the Cloudflare build
+  (which runs on Linux) produce the bundle — see below.
 
 Both patches are no-ops on Linux.
 
-### CI
+### Deploying
 
-`.github/workflows/deploy-workers.yml` runs on `main` pushes (and on demand),
-runs the gates, builds with OpenNext and deploys. It needs
-`CLOUDFLARE_API_TOKEN` as a repository secret,
-`NEXT_PUBLIC_*` values as repository variables (they are inlined at build time),
-and the runtime values as Worker secrets. The account id comes from
-`wrangler.jsonc`, so no `CLOUDFLARE_ACCOUNT_ID` secret is needed. Migrations run
-only when the manual dispatch sets `run_migrations`.
+Deploys come from the Cloudflare build connected to this repository, not from a
+GitHub Action: a push builds on Cloudflare's Linux builders and uploads the
+Worker `class`. There is deliberately no `.github/workflows` deploy job, because
+a second deployer would race the first and could finish last with an older
+build.
+
+Because the build runs on Cloudflare's side, `NEXT_PUBLIC_*` values must be set
+in the Worker's build configuration (they are inlined at build time), the
+runtime values as Worker secrets, and migrations must be applied separately
+(`npm run db:deploy`) — the build never touches the schema.
 
 ### Environment variables
 
