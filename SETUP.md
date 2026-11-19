@@ -267,6 +267,38 @@ the tab is visible — correct, just not instant.
 4. Build command is `npm run build` (which runs `prisma generate` first).
 5. Run `npx prisma migrate deploy` against production once, using `DIRECT_URL`.
 
+## Deploying to Cloudflare Workers
+
+The same source also runs on Workers through
+[OpenNext](https://opennext.js.org/cloudflare). Vercel needs no changes and the
+Worker needs no code changes — only configuration.
+
+```sh
+npx wrangler login
+npm run preview:workers   # whole app in workerd, locally
+npm run deploy:workers    # build + deploy
+```
+
+- `wrangler.jsonc` holds the Worker config (`nodejs_compat`, assets, optional
+  Hyperdrive binding). `open-next.config.ts` holds the adapter config.
+- `NEXT_PUBLIC_*` values are inlined at build time; the rest are Worker secrets:
+
+  ```sh
+  npx wrangler secret put DATABASE_URL
+  npx wrangler secret put FIREBASE_SERVICE_ACCOUNT_KEY
+  npx wrangler secret put PUSHER_APP_ID
+  npx wrangler secret put PUSHER_SECRET
+  npx wrangler secret put S3_ACCESS_KEY_ID
+  npx wrangler secret put S3_SECRET_ACCESS_KEY
+  ```
+
+- The Worker never migrates. Apply migrations from CI or a laptop with
+  `npm run db:deploy` before deploying new code.
+- `@opennextjs/cloudflare` is pinned to `1.20.1`; newer releases require Next
+  `>=16.4.5` and this app is on `16.2.6`.
+
+Full details, Hyperdrive setup and known differences: `docs/deployment.md`.
+
 ## Troubleshooting
 
 **`Can't reach database server`** — `DATABASE_URL` is wrong or the database is

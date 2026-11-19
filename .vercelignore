@@ -11,3 +11,7 @@ node_modules
 .next
 .git
 .vercel
+.dev.vars
+.dev.vars.local
+.open-next
+.wrangler

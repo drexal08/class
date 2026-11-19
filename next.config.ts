@@ -33,6 +33,41 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
+
+  /**
+   * The signed-in landing shortcut.
+   *
+   * This used to be the first branch of `proxy.ts`: a visitor who arrives at
+   * `/` carrying a `__session` cookie is handed to `/api/auth/landing`, which
+   * verifies the cookie for real — a live session goes to the dashboard, a dead
+   * one is cleared and the visitor stays put. The route also sets
+   * `__landing_checked` for a few seconds when it cannot clear the cookie, and
+   * `missing` below is what stops the redirect loop in that case.
+   *
+   * It lives in a rewrite rather than middleware because Next 16 runs
+   * `proxy.ts` on the Node.js runtime only, and the Cloudflare Workers adapter
+   * cannot build Node middleware at all. Cookie conditions keep `/` a static
+   * document, so anonymous visitors still never touch the database.
+   */
+  async rewrites() {
+    return {
+      /**
+       * `beforeFiles` is required, not stylistic: an `afterFiles` rewrite is
+       * only consulted when nothing on disk matched, and `/` is a prerendered
+       * page — it always matches. The redirect would silently never fire.
+       */
+      beforeFiles: [
+        {
+          source: "/",
+          has: [{ type: "cookie", key: "__session" }],
+          missing: [{ type: "cookie", key: "__landing_checked" }],
+          destination: "/api/auth/landing?next=/",
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
 };
 
 export default nextConfig;

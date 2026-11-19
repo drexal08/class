@@ -17,8 +17,11 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // `proxy.ts` only checks that a cookie exists. This is where the session is
-  // actually verified, so a forged cookie stops here.
+  // Every private route lives in this group, so this is the only gate: the
+  // session is verified here (a forged cookie stops at `getCurrentUser`) and a
+  // signed-out visitor is sent to `/login`. There is no middleware in front of
+  // it — Next 16 proxies are Node-only and the Workers adapter cannot build
+  // them, so the check has to live in the tree rather than beside it.
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

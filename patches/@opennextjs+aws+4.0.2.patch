@@ -1,0 +1,17 @@
+diff --git a/node_modules/@opennextjs/aws/dist/build/copyTracedFiles.js b/node_modules/@opennextjs/aws/dist/build/copyTracedFiles.js
+index 9701b04..a521a5a 100644
+--- a/node_modules/@opennextjs/aws/dist/build/copyTracedFiles.js
++++ b/node_modules/@opennextjs/aws/dist/build/copyTracedFiles.js
+@@ -225,7 +225,11 @@ File ${serverPath} does not exist
+         }
+         if (symlink) {
+             try {
+-                symlinkSync(symlink, to);
++                // Windows cannot create directory symlinks without
++                // SeCreateSymbolicLinkPrivilege (admin, or Developer Mode).
++                // Junctions point at an absolute directory, need no privilege and
++                // behave the same for this traced node_modules link.
++                symlinkSync(symlink, to, process.platform === "win32" ? "junction" : undefined);
+             }
+             catch (e) {
+                 if (e.code !== "EEXIST") {

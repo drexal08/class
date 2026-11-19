@@ -31,11 +31,32 @@ export class DatabaseNotConfiguredError extends Error {
   }
 }
 
+/**
+ * True inside workerd.
+ *
+ * `wrangler.jsonc` sets `DEPLOYMENT_TARGET=cloudflare`; the user-agent check
+ * covers `opennextjs-cloudflare preview` and any Worker where the variable was
+ * not copied across. Vercel sets neither, so its Node path is unchanged.
+ */
+function isCloudflareWorkers(): boolean {
+  if (process.env.DEPLOYMENT_TARGET === "cloudflare") return true;
+  return (
+    typeof navigator !== "undefined" &&
+    navigator.userAgent === "Cloudflare-Workers"
+  );
+}
+
 function createClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new DatabaseNotConfiguredError();
 
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg({
+    connectionString,
+    // Workers must not reuse a socket across requests. Closing the connection
+    // after every query keeps an idle client from leaking into the next
+    // invocation; on Node/Vercel the pool behaves normally.
+    ...(isCloudflareWorkers() ? { maxUses: 1 } : {}),
+  });
 
   return new PrismaClient({
     adapter,

@@ -27,7 +27,7 @@ Full walkthrough in **[SETUP.md](./SETUP.md)**.
 | Database | PostgreSQL (Neon) via Prisma 7 with the `@prisma/adapter-pg` driver adapter |
 | Storage | Neon Object Storage (S3-compatible) / R2 / AWS S3 via presigned `PUT` |
 | Real-time | Pusher private channels, with a polling fallback |
-| Hosting | Vercel |
+| Hosting | Vercel, or Cloudflare Workers via OpenNext (`npm run deploy:workers`) |
 
 ## Features
 
@@ -71,7 +71,7 @@ Every authenticated route is explicitly `noindex`.
 ```
 prisma/schema.prisma     14 models, 6 enums
 prisma/seed.ts           demo classes, students and grades
-src/proxy.ts             route gate (Next 16's replacement for middleware.ts)
+src/app/(app)/layout.tsx  session gate: verifies the cookie, redirects to /login
 src/lib/data/*           server-only reads — never network-reachable
 src/lib/actions/*        "use server" mutations only
 src/lib/auth/guards.ts   requireUser / requireCourseTeacher / requireSubmissionTeacher
@@ -95,6 +95,8 @@ file is a public POST endpoint, so all reads live in `src/lib/data/*` behind
 | `npm run db:seed` | Load demo data |
 | `npm run db:studio` | Prisma Studio |
 | `npm run storage:test` | Upload, list and read back an object in the Neon bucket |
+| `npm run preview:workers` | Build for Cloudflare and run the whole app in workerd locally |
+| `npm run deploy:workers` | Build for Cloudflare and deploy the Worker + assets |
 
 ## Design system
 
@@ -164,12 +166,18 @@ plugin and a second set of defaults.
   certification. The address they point at comes from
   `NEXT_PUBLIC_CONTACT_EMAIL`; without it they say that no address is
   published instead of showing a placeholder.
-- **`proxy.ts` checks cookie presence only.** Real verification happens in server
-  components and actions; a forged cookie gets past the gate and dies there.
-  A visitor who arrives at the landing page with a cookie is handed to
-  `/api/auth/landing`, which verifies it properly: a real session goes to the
-  dashboard, a dead one is cleared and the visitor is put back on the landing
-  page. Anonymous visitors never reach that route.
+- **One session gate, in the route group.** Every private route lives under
+  `(app)`, whose layout calls `getCurrentUser()`: a signed-out visitor is sent
+  to `/login` and a forged cookie dies there. There is deliberately no
+  `proxy.ts` — Next 16 only runs proxies on the Node.js runtime and the
+  Cloudflare Workers adapter cannot build Node middleware, so a proxy would
+  have made the Worker target impossible. The one thing a proxy did that a
+  layout cannot is catch `/`; that is a cookie-conditioned rewrite in
+  `next.config.ts` which hands a visitor carrying a session to
+  `/api/auth/landing`. That route verifies the cookie properly: a real session
+  goes to the dashboard, a dead one is cleared and the visitor is put back on
+  the landing page. Anonymous visitors never reach it and the landing page
+  stays static.
 
 ## Verified
 

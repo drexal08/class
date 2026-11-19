@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lms-core",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-18",
+  "compatibility_flags": [
+    // Prisma, pg, firebase-admin and the AWS SDK use Node built-ins.
+    "nodejs_compat",
+    // Keep outbound fetch from resolving to the Worker itself.
+    "global_fetch_strictly_public",
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      // Must match the "name" above.
+      "service": "lms-core",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+  "vars": {
+    // Tells src/lib/prisma.ts that it is running in workerd. Vercel does not
+    // set this, so the Node path (a pooled global client) stays the default.
+    "DEPLOYMENT_TARGET": "cloudflare",
+  },
+  // Optional: put a Hyperdrive in front of Neon and bind it here. Without it
+  // the Worker connects to DATABASE_URL directly.
+  // "hyperdrive": [
+  //   {
+  //     "binding": "HYPERDRIVE",
+  //     "id": "<hyperdrive-id>",
+  //   },
+  // ],
+}

@@ -118,3 +118,23 @@ Its Production and Preview environments hold `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION` and `S3_BUCKET`;
 env changes only reach new deployments, so redeploy and check
 `GET /api/health` (`services.storage`) afterwards.
+
+The same source also deploys to Cloudflare Workers through OpenNext
+(`wrangler.jsonc`, `open-next.config.ts`). `npm run preview:workers` runs the
+whole app in workerd locally; `npm run deploy:workers` builds and deploys.
+`src/lib/prisma.ts` detects workerd and sets `maxUses: 1` so a pool socket is
+never reused across requests; the Vercel path is unchanged. `@opennextjs/
+cloudflare` is pinned to `1.20.1` because newer releases require Next
+`>=16.4.5` (the app is on `16.2.6`). Full setup, secrets and Hyperdrive notes:
+`docs/deployment.md`.
+
+Two constraints follow from that target and must not be undone:
+
+- **No `src/proxy.ts`.** Next 16 runs proxies on the Node.js runtime only, and
+  every OpenNext release refuses to build Node middleware. The session gate
+  lives in `src/app/(app)/layout.tsx`; the signed-in `/` shortcut is a
+  cookie-conditioned `beforeFiles` rewrite in `next.config.ts`. Adding a proxy
+  back makes `npm run deploy:workers` fail.
+- **`patches/@opennextjs+aws+4.0.2.patch`** (applied by `postinstall`) passes
+  `"junction"` to `symlinkSync` on Windows, which needs no privilege there. Do
+  not drop it while OpenNext still only ships symlinks.

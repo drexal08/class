@@ -12,11 +12,11 @@ export const dynamic = "force-dynamic";
 /**
  * Set for a few seconds after this route has looked at a session cookie.
  *
- * The proxy sends every visitor carrying a `__session` cookie here, because it
- * cannot tell a real session from an expired one. When the cookie turns out
- * to be unusable and cannot be cleared — because the database or Firebase is
- * unreachable — the marker stops the proxy from sending the same visitor round
- * the loop again.
+ * The `beforeFiles` rewrite in `next.config.ts` sends every visitor carrying a
+ * `__session` cookie here, because a rewrite cannot tell a real session from an
+ * expired one. When the cookie turns out to be unusable and cannot be cleared —
+ * because the database or Firebase is unreachable — the marker stops the
+ * rewrite from sending the same visitor round the loop again.
  */
 const CHECKED_COOKIE = "__landing_checked";
 const CHECKED_MAX_AGE = 10;
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     response.cookies.delete(SESSION_COOKIE);
   } else {
     // The cookie may still be good: the database or Firebase was unreachable.
-    // Leave it alone and stop the proxy from asking again straight away.
+    // Leave it alone and stop the rewrite from asking again straight away.
     response.cookies.set(CHECKED_COOKIE, "1", {
       httpOnly: true,
       sameSite: "lax",
