@@ -102,6 +102,42 @@ things follow:
 
 Both patches are no-ops on Linux.
 
+#### The patches only exist after a real install
+
+`patch-package` runs from `postinstall`, so the patches are applied by
+`npm install` / `npm ci` — not by `npm run build`. Two consequences:
+
+- `npm ci` must be allowed to run install scripts. npm 11 hides
+  `workerd`'s, `esbuild`'s and `sharp`'s postinstall behind
+  `ignore-scripts`/`allow-scripts` settings; with those blocked, `workerd`
+  has no binary and `wrangler dev`/`preview` cannot start.
+- A `node_modules` that was only half-populated (an interrupted `npm ci`
+  leaves package folders without `package.json`) still looks installed.
+  Check before blaming the code:
+
+  ```sh
+  grep -c junction node_modules/@opennextjs/aws/dist/build/copyTracedFiles.js   # expect 1
+  grep -c toChunkKey node_modules/@opennextjs/cloudflare/dist/cli/build/patches/plugins/turbopack.js   # expect 3
+  ```
+
+  Both `0` (or `No such file`) means the patches are not in place: delete
+  `node_modules` and run `npm ci` again.
+
+### Verifying a build locally
+
+The two checks that actually prove the Worker is deployable:
+
+```sh
+npx opennextjs-cloudflare build     # writes .open-next/worker.js
+npx wrangler deploy --dry-run       # resolves the bundle and prints its size
+```
+
+`--dry-run` uploads nothing and needs no login, so it can be run on any
+machine. Expected output: `Total Upload: ~24400 KiB / gzip: ~5080 KiB`, with
+`env.ASSETS` and `env.DEPLOYMENT_TARGET ("cloudflare")` as the only bindings.
+Anything much larger is usually a dependency that started shipping its
+sources; anything that fails to resolve is usually a missing patch (above).
+
 ### Deploying
 
 Deploys come from the Cloudflare build connected to this repository, not from a
