@@ -50,15 +50,18 @@ export function isDevAuthEnabledClient(): boolean {
 /**
  * S3-compatible object storage settings.
  *
- * Two naming schemes are supported:
+ * Three naming schemes are supported:
  *
  * - The app's own `S3_*` variables, for Cloudflare R2 and AWS S3.
  * - The AWS-standard variables Neon Object Storage injects
  *   (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`,
  *   `AWS_REGION`), which `neon env pull` writes into `.env`.
+ * - Cloudflare Workers R2 binding (`lms_core_uploads`), which is injected
+ *   by Wrangler/OpenNext when the `r2_buckets` config is present.
  *
  * `S3_*` wins when both are present, so a deployment can point the app at a
- * different bucket than the one Neon manages.
+ * different bucket than the one Neon manages. R2 binding is used automatically
+ * when running on Cloudflare Workers with the binding configured.
  */
 export type StorageConfig = {
   bucket: string;
@@ -90,7 +93,12 @@ export function getStorageConfig(): StorageConfig | null {
 }
 
 export function isStorageConfigured(): boolean {
-  return getStorageConfig() !== null;
+  // Storage is configured if either S3 credentials are present OR
+  // we're running on Cloudflare Workers with an R2 binding.
+  if (getStorageConfig() !== null) return true;
+  // Check for R2 binding (injected by Wrangler/OpenNext)
+  if (typeof process !== "undefined" && process.env.LMS_CORE_UPLOADS) return true;
+  return false;
 }
 
 /**

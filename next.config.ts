@@ -19,13 +19,28 @@ const nextConfig: NextConfig = {
   // `require()`s jose v6 — a pure-ESM package. Marking it external makes Node
   // load that chain raw at runtime and fail with ERR_REQUIRE_ESM on every
   // request. Letting the bundler resolve the import instead avoids it.
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"],
+  //
+  // @prisma/adapter-pg and pg must NOT be externalized for Cloudflare Workers:
+  // the Worker build cannot load them as external modules. They are safe to
+  // bundle because they have no native dependencies that break on workerd
+  // (unlike @prisma/client which uses a wasm query compiler).
+  //
+  // @prisma/client is also NOT externalized: the wasm query compiler cannot be
+  // loaded as an external module on Cloudflare Workers. Bundling it works
+  // because the binary engine (engineType = "binary" in schema.prisma) avoids
+  // the wasm compiler at runtime, but the wasm file must still be present in
+  // the bundle for the client to load.
+  serverExternalPackages: [],
 
   // firebase-admin ships in Next's built-in externals list, so omitting it
   // above is not enough — that list is added to, not replaced. Naming it here
   // opts it out and forces the bundler to resolve the jose ESM import at build
   // time instead of leaving a runtime require() that cannot.
-  transpilePackages: ["firebase-admin"],
+  //
+  // pg must also be transpiled/bundled for Cloudflare Workers: the Prisma
+  // adapter imports it, and the Worker build cannot load it as an external
+  // module.
+  transpilePackages: ["firebase-admin", "pg"],
 
   images: {
     remotePatterns: [

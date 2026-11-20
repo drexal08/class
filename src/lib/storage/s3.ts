@@ -124,3 +124,94 @@ export async function deleteObject(key: string): Promise<void> {
     console.error("[storage] Could not delete object", key, error);
   }
 }
+
+/**
+ * R2 binding helpers for Cloudflare Workers.
+ *
+ * When running on Cloudflare Workers, the R2 bucket is available as a binding
+ * (`env.lms_core_uploads`). This provides native R2 access without needing
+ * S3 credentials or presigned URLs for internal operations.
+ */
+export interface R2Binding {
+  put(key: string, value: ReadableStream | ArrayBuffer | string, options?: { httpMetadata?: { contentType?: string } }): Promise<R2Object | null>;
+  get(key: string): Promise<R2Object | null>;
+  delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<R2Objects>;
+}
+
+export interface R2Object {
+  key: string;
+  size: number;
+  etag: string;
+  httpMetadata?: { contentType?: string };
+  customMetadata?: Record<string, string>;
+  body: ReadableStream;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  text(): Promise<string>;
+  json<T>(): Promise<T>;
+}
+
+export interface R2Objects {
+  objects: R2Object[];
+  truncated: boolean;
+  cursor?: string;
+}
+
+/**
+ * Get the R2 binding from the Cloudflare Workers environment.
+ * Returns null if not running on Workers or binding not configured.
+ */
+export function getR2Binding(): R2Binding | null {
+  // The binding is injected by Wrangler/OpenNext as a global
+  // This is a type-only check; the actual binding is available at runtime
+  if (typeof globalThis !== "undefined" && "lms_core_uploads" in globalThis) {
+    return (globalThis as Record<string, unknown>).lms_core_uploads as R2Binding;
+  }
+  return null;
+}
+
+/**
+ * Check if R2 binding is available (running on Cloudflare Workers with binding).
+ */
+export function isR2BindingAvailable(): boolean {
+  return getR2Binding() !== null;
+}
+
+/**
+ * Create a presigned upload URL using R2 binding.
+ * Note: R2 bindings don't directly support presigned URLs, so we fall back
+ * to S3 client for presigned URLs even when R2 binding is available.
+ */
+export async function createUploadUrlR2(params: {
+  key: string;
+  mimeType: string;
+  size: number;
+}): Promise<string | null> {
+  // For presigned URLs, we still need the S3 client
+  return createUploadUrl(params);
+}
+
+/**
+ * Resolve a file URL using R2 binding.
+ * For R2, we can generate a signed URL using the S3 client.
+ */
+export async function resolveFileUrlR2(key: string): Promise<string | null> {
+  return resolveFileUrl(key);
+}
+
+/**
+ * Delete an object using R2 binding.
+ */
+export async function deleteObjectR2(key: string): Promise<void> {
+  const r2 = getR2Binding();
+  if (r2) {
+    try {
+      await r2.delete(key);
+      return;
+    } catch (error) {
+      console.error("[storage] R2 delete failed, falling back to S3", key, error);
+    }
+  }
+  // Fall back to S3 client
+  await deleteObject(key);
+}

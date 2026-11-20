@@ -6,7 +6,6 @@ import {
   isRealtimeConfigured,
   isStorageConfigured,
 } from "@/lib/env";
-import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,12 +27,13 @@ export async function GET() {
   }
 
   try {
+    const { prisma } = await import("@/lib/prisma");
     await prisma.$queryRaw`SELECT 1`;
     return NextResponse.json({ ok: true, services });
   } catch (error) {
     console.error("[health] Database unreachable", error);
     return NextResponse.json(
-      { ok: false, reason: "Database unreachable", services },
+      { ok: false, reason: "Database unreachable", services, error: String(error), stack: error instanceof Error ? error.stack : undefined },
       { status: 503 },
     );
   }

@@ -47,7 +47,16 @@ function isCloudflareWorkers(): boolean {
 }
 
 function createClient(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL;
+  // On Cloudflare Workers with Hyperdrive, use the Hyperdrive connection string.
+  // Hyperdrive exposes the connection string via the binding.
+  let connectionString = process.env.DATABASE_URL;
+  if (isCloudflareWorkers() && typeof process.env.HYPERDRIVE !== "undefined") {
+    // Hyperdrive binding is available as an object with connectionString property
+    const hyperdrive = process.env.HYPERDRIVE as { connectionString?: string } | undefined;
+    if (hyperdrive?.connectionString) {
+      connectionString = hyperdrive.connectionString;
+    }
+  }
   if (!connectionString) throw new DatabaseNotConfiguredError();
 
   const adapter = new PrismaPg({

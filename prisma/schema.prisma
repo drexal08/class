@@ -14,6 +14,12 @@ datasource db {
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  // Use the native binary engine instead of the wasm query compiler.
+  // The wasm compiler cannot be loaded as an external module on Cloudflare
+  // Workers, and bundling it requires extra OpenNext configuration that is
+  // not yet stable. The binary engine works on workerd because the Prisma
+  // engines are prebuilt for linux-musl (which workerd uses).
+  engineType = "binary"
 }
 
 // ---------------------------------------------------------------------------

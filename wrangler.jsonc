@@ -31,6 +31,19 @@
     // set this, so the Node path (a pooled global client) stays the default.
     "DEPLOYMENT_TARGET": "cloudflare",
   },
+  "r2_buckets": [
+    {
+      "bucket_name": "lms-core-uploads",
+      "binding": "lms_core_uploads"
+    }
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "f7801154604f4b9895700cab6d991d49",
+      "localConnectionString": "postgresql://neondb_owner:npg_Xi6C7QRmvsOI@ep-hidden-glitter-bcvrwz0e-pooler.c-16.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
+    }
+  ],
   // Optional: put a Hyperdrive in front of Neon and bind it here. Without it
   // the Worker connects to DATABASE_URL directly.
   // "hyperdrive": [
