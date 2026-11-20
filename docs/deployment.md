@@ -90,7 +90,9 @@ things follow:
   `import()` paths, and it used to paste the absolute path into the generated
   source unescaped. On Windows that produced `C:\Users\...` with `\n`, `\U`
   and friends turning into control characters, so `wrangler` could not resolve
-  `resvg.wasm` and `yoga.wasm` (used by `src/app/opengraph-image.tsx`).
+  `resvg.wasm` and `yoga.wasm` (used by the social card route that has since
+  been replaced by `public/og.svg`; the patch is kept because the same
+  unescaped-path bug can hit any other wasm a dependency ships).
   `patches/@opennextjs+cloudflare+1.20.1.patch` emits the paths with
   `JSON.stringify` and builds the switch keys with forward slashes. On Linux
   the generated code is byte-for-byte what it was, so this changes nothing
@@ -254,10 +256,12 @@ add one if you want long-lived immutable caching for `/_next/static/*`.
 - **Caching**: every authenticated route is `force-dynamic`; no R2 incremental
   cache is configured. Add one in `open-next.config.ts` if ISR/SSG is
   introduced.
-- **Bundle size**: the built Worker is ~24 MiB raw / **~5.1 MiB gzip**, because
-  Prisma, `pg`, `firebase-admin`, the AWS SDK and the `next/og` wasm binaries
-  all ship in the server bundle. The Free plan caps a Worker at 3 MiB gzip, so
-  **deploying this app needs a paid Workers plan** (10 MB). Re-measure with
-  `npx wrangler deploy --dry-run` after big dependency changes.
+- **Bundle size**: the built Worker is ~22 MiB raw / **~4.3 MiB gzip**. Prisma,
+  `pg`, `firebase-admin` and the AWS SDK ship in the server bundle; the
+  `next/og` wasm pair no longer does, because the social card is a static SVG
+  (`public/og.svg`) instead of a satori route. The Free plan caps a Worker at
+  3 MiB gzip, so **deploying this app still needs a paid Workers plan**
+  (10 MB). Re-measure with `npx wrangler deploy --dry-run` after big dependency
+  changes.
 - **Local dev**: `npm run dev` stays on Node. Use `npm run preview:workers` to
   test the workerd path.

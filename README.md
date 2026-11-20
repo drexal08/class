@@ -133,8 +133,8 @@ their title as an `<h2>`. Card headings inside them are `<h3>`. `EmptyState`
 takes an `as` prop so it can fill the same slot as whatever it replaces.
 
 **The mark.** `src/components/brand/logo.tsx` holds the geometry. The same
-drawing is reproduced in `src/app/icon.svg` (favicon) and
-`src/app/opengraph-image.tsx` (social card) — keep the three in step. The
+drawing is reproduced in `src/app/icon.svg` (favicon) and `public/og.svg`
+(social card) — keep the three in step. The
 wordmark reads its name from `siteConfig`, so it can never drift from the one
 used in page titles and metadata.
 

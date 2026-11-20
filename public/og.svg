@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="LMS Core — A calm classroom for teachers and students">
+  <!--
+    Social preview card.
+
+    This used to be rendered by satori (`src/app/opengraph-image.tsx`), which
+    dragged `next/og` and its two wasm binaries (resvg 1.3 MB, yoga 72 KB) into
+    the server bundle — the single largest removable item in the Cloudflare
+    Workers build, and enough to matter against the 3 MiB Free-plan cap.
+
+    The card is now a static SVG served as an asset: no runtime rendering, no
+    wasm, no bundle cost. The geometry is the same drawing as
+    `src/app/icon.svg`, so the favicon and the social preview still match.
+  -->
+  <rect width="1200" height="630" fill="#f8fafc"/>
+
+  <!-- Brand mark: same geometry as src/app/icon.svg -->
+  <g transform="translate(80 80) scale(2.25)">
+    <rect width="32" height="32" rx="8" fill="#1e293b"/>
+    <path d="M11 8.5V19a4.5 4.5 0 0 0 4.5 4.5" fill="none" stroke="#f8fafc" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M15.5 23.5H21" fill="none" stroke="#f8fafc" stroke-opacity="0.72" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="170" y="139" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="34" letter-spacing="-0.5">
+    <tspan fill="#1e293b" font-weight="700">LMS</tspan>
+    <tspan fill="#64748b" font-weight="400" dx="9">Core</tspan>
+  </text>
+
+  <!-- Headline -->
+  <text x="80" y="400" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="68" font-weight="700" letter-spacing="-1.5" fill="#1e293b">
+    A calm classroom for
+  </text>
+  <text x="80" y="482" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="68" font-weight="700" letter-spacing="-1.5" fill="#1e293b">
+    teachers and students
+  </text>
+
+  <!-- Subline -->
+  <text x="80" y="542" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="30" fill="#64748b">
+    For schools, colleges and training teams. Classes, assignments, rubrics and grading — in one focused place.
+  </text>
+
+  <!-- Rule: the three-slate bar from the app's palette -->
+  <g transform="translate(80 574)">
+    <rect width="624" height="8" rx="4" fill="#1e293b"/>
+    <rect x="624" width="208" height="8" fill="#cbd5e1"/>
+    <rect x="832" width="208" height="8" rx="4" fill="#e2e8f0"/>
+  </g>
+</svg>

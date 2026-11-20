@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * tile, so it follows the theme and never introduces a colour of its own.
  *
  * The same geometry is reproduced in `src/app/icon.svg` (the favicon) and
- * `src/app/opengraph-image.tsx` (the social card). Keep the three in step.
+ * `public/og.svg` (the social card). Keep the three in step.
  */
 export function LogoMark({ className }: { className?: string }) {
   return (

@@ -44,11 +44,16 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     title: `${siteConfig.name} — ${siteConfig.tagline}`,
     description: siteConfig.description,
+    // A static asset rather than a rendered route: the satori renderer pulled
+    // two wasm binaries into the server bundle, which the Cloudflare Workers
+    // build cannot afford. See public/og.svg.
+    images: [{ url: "/og.svg", width: 1200, height: 630, alt: siteConfig.tagline }],
   },
   twitter: {
     card: "summary_large_image",
     title: `${siteConfig.name} — ${siteConfig.tagline}`,
     description: siteConfig.description,
+    images: ["/og.svg"],
   },
   robots: {
     index: true,
