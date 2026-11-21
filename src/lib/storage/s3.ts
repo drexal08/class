@@ -157,15 +157,16 @@ export interface R2Objects {
   cursor?: string;
 }
 
+import { getCloudflareBindings } from "@/lib/cloudflare";
+
 /**
  * Get the R2 binding from the Cloudflare Workers environment.
  * Returns null if not running on Workers or binding not configured.
  */
 export function getR2Binding(): R2Binding | null {
-  // The binding is injected by Wrangler/OpenNext as a global
-  // This is a type-only check; the actual binding is available at runtime
-  if (typeof globalThis !== "undefined" && "lms_core_uploads" in globalThis) {
-    return (globalThis as Record<string, unknown>).lms_core_uploads as R2Binding;
+  const bindings = getCloudflareBindings();
+  if (bindings?.LMS_CORE_UPLOADS) {
+    return bindings.LMS_CORE_UPLOADS as R2Binding;
   }
   return null;
 }

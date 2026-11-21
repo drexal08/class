@@ -6,6 +6,8 @@
  * services surface as a clear disabled state in the UI rather than a crash.
  */
 
+import { isCloudflareWorkers, getCloudflareBindings } from "@/lib/cloudflare";
+
 export function isDatabaseConfigured(): boolean {
   return Boolean(process.env.DATABASE_URL);
 }
@@ -96,8 +98,16 @@ export function isStorageConfigured(): boolean {
   // Storage is configured if either S3 credentials are present OR
   // we're running on Cloudflare Workers with an R2 binding.
   if (getStorageConfig() !== null) return true;
-  // Check for R2 binding (injected by Wrangler/OpenNext)
-  if (typeof process !== "undefined" && process.env.LMS_CORE_UPLOADS) return true;
+  // Check for R2 binding (injected by Wrangler/OpenNext via Cloudflare context)
+  if (typeof process !== "undefined") {
+    // First check process.env (for local/dev where vars are strings)
+    if (process.env.LMS_CORE_UPLOADS) return true;
+    // Then check Cloudflare bindings (for deployed Workers where it's an object)
+    if (isCloudflareWorkers()) {
+      const bindings = getCloudflareBindings();
+      if (bindings?.LMS_CORE_UPLOADS) return true;
+    }
+  }
   return false;
 }
 

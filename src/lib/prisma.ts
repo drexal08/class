@@ -4,6 +4,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "@/generated/prisma/client";
 
+import { isCloudflareWorkers, getCloudflareBindings } from "@/lib/cloudflare";
+
 /**
  * Lazy Prisma singleton.
  *
@@ -31,28 +33,13 @@ export class DatabaseNotConfiguredError extends Error {
   }
 }
 
-/**
- * True inside workerd.
- *
- * `wrangler.jsonc` sets `DEPLOYMENT_TARGET=cloudflare`; the user-agent check
- * covers `opennextjs-cloudflare preview` and any Worker where the variable was
- * not copied across. Vercel sets neither, so its Node path is unchanged.
- */
-function isCloudflareWorkers(): boolean {
-  if (process.env.DEPLOYMENT_TARGET === "cloudflare") return true;
-  return (
-    typeof navigator !== "undefined" &&
-    navigator.userAgent === "Cloudflare-Workers"
-  );
-}
-
 function createClient(): PrismaClient {
   // On Cloudflare Workers with Hyperdrive, use the Hyperdrive connection string.
-  // Hyperdrive exposes the connection string via the binding.
+  // Hyperdrive exposes the connection string via the binding object.
   let connectionString = process.env.DATABASE_URL;
-  if (isCloudflareWorkers() && typeof process.env.HYPERDRIVE !== "undefined") {
-    // Hyperdrive binding is available as an object with connectionString property
-    const hyperdrive = process.env.HYPERDRIVE as { connectionString?: string } | undefined;
+  if (isCloudflareWorkers()) {
+    const bindings = getCloudflareBindings();
+    const hyperdrive = bindings?.HYPERDRIVE as { connectionString?: string } | undefined;
     if (hyperdrive?.connectionString) {
       connectionString = hyperdrive.connectionString;
     }
