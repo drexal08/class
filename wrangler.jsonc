@@ -37,12 +37,20 @@
       "binding": "lms_core_uploads"
     }
   ],
+    // Hyperdrive in front of Neon. `opennextjs-cloudflare deploy` calls
+  // `getPlatformProxy()`, which runs Wrangler's *local* Hyperdrive path even
+  // when deploying for real: without a local connection string it aborts with
+  // "When developing locally, you should use a local Postgres connection
+  // string". The value is never used in production (the deployed Worker gets
+  // the string from the Hyperdrive config), so it is a non-secret placeholder.
+  //
+  // For a real local database, set CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
+  // in .dev.vars (gitignored); Wrangler prefers it over this value.
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      "id": "f7801154604f4b9895700cab6d991d49"
-      // localConnectionString is set via wrangler secret or .dev.vars.local
-      // DO NOT commit real connection strings to git
+      "id": "f7801154604f4b9895700cab6d991d49",
+      "localConnectionString": "postgresql://hyperdrive-placeholder@127.0.0.1:5432/neondb"
     }
   ],
   // Optional: put a Hyperdrive in front of Neon and bind it here. Without it
