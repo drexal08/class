@@ -24,9 +24,9 @@
   // not configure, and a self-reference to a Worker that does not exist is a
   // hard deploy failure ("references Worker 'x' which was not found").
   "observability": {
-    "enabled": true,
-  },
-  "vars": {
+      "enabled": true,
+    },
+    "vars": {
     // Tells src/lib/prisma.ts that it is running in workerd. Vercel does not
     // set this, so the Node path (a pooled global client) stays the default.
     "DEPLOYMENT_TARGET": "cloudflare",

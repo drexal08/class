@@ -26,10 +26,8 @@ const nextConfig: NextConfig = {
   // (unlike @prisma/client which uses a wasm query compiler).
   //
   // @prisma/client is also NOT externalized: the wasm query compiler cannot be
-  // loaded as an external module on Cloudflare Workers. Bundling it works
-  // because the binary engine (engineType = "binary" in schema.prisma) avoids
-  // the wasm compiler at runtime, but the wasm file must still be present in
-  // the bundle for the client to load.
+  // loaded as an external module on Cloudflare Workers. For Workers builds we
+  // alias it to the workerd-specific generated client (runtime = "workerd").
   serverExternalPackages: [],
 
   // firebase-admin ships in Next's built-in externals list, so omitting it
@@ -43,13 +41,13 @@ const nextConfig: NextConfig = {
   transpilePackages: ["firebase-admin", "pg"],
 
   images: {
-    remotePatterns: [
-      // Google account photos, used as avatars after Google sign-in.
-      { protocol: "https", hostname: "lh3.googleusercontent.com" },
-    ],
-  },
+      remotePatterns: [
+        // Google account photos, used as avatars after Google sign-in.
+        { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      ],
+    },
 
-  /**
+    /**
    * The signed-in landing shortcut.
    *
    * This used to be the first branch of `proxy.ts`: a visitor who arrives at
