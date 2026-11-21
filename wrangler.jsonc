@@ -40,8 +40,9 @@
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      "id": "f7801154604f4b9895700cab6d991d49",
-      "localConnectionString": "postgresql://neondb_owner:npg_Xi6C7QRmvsOI@ep-hidden-glitter-bcvrwz0e-pooler.c-16.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
+      "id": "f7801154604f4b9895700cab6d991d49"
+      // localConnectionString is set via wrangler secret or .dev.vars.local
+      // DO NOT commit real connection strings to git
     }
   ],
   // Optional: put a Hyperdrive in front of Neon and bind it here. Without it
