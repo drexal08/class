@@ -5,7 +5,7 @@
   "description": "LMS Core — a production-ready Google Classroom alternative",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && tsx scripts/build-with-vars.mjs",
     "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "preview:workers": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
