@@ -3,7 +3,7 @@
 // The models below reproduce the PRD (§5) specification verbatim. Fields marked
 // `[+]` are additive extensions required by PRD modules that the base schema has
 // no columns for — each one is annotated with the module that demands it.
-
+//
 // Prisma 7 removed `url` from the datasource block: connection strings for the
 // CLI now live in `prisma.config.ts`, and the runtime gets its connection from
 // the driver adapter passed to `new PrismaClient()` (see src/lib/prisma.ts).
@@ -11,10 +11,18 @@ datasource db {
   provider = "postgresql"
 }
 
-// For all platforms — binary engine for DB, WASM query compiler (works on Vercel, known issue on Workers)
+// For Node/Vercel (default) — binary engine, WASM query compiler
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+}
+
+// For Cloudflare Workers (workerd) — static WASM import via workerd runtime
+// This avoids `new WebAssembly.Module(base64)` which is forbidden on workerd.
+generator workerdClient {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma-workerd"
+  runtime  = "workerd"
 }
 
 // ---------------------------------------------------------------------------
@@ -70,6 +78,52 @@ enum NotificationType {
   ABSENCE_DECIDED
 }
 
+// --- SDMS: platform, school tenancy, cohorts and imports --------------------
+
+enum PlatformRole {
+  USER
+  SUPERUSER
+}
+
+enum SchoolRole {
+  ADMIN
+  TEACHER
+}
+
+enum SchoolMemberStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MemberStatus {
+  ACTIVE
+  MOVED
+  LEFT
+}
+
+enum CourseKind {
+  HOMEROOM
+  SUBJECT
+}
+
+enum JoinCodeKind {
+  SCHOOL
+  COHORT
+  COURSE
+}
+
+enum PasswordPolicy {
+  DEFAULT
+  CUSTOM
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -83,6 +137,20 @@ model User {
   /// Administrator rights are an overlay, not a third role: they unlock the
   /// admin console without changing how the person is treated in classes.
   isAdmin     Boolean  @default(false)
+
+  // [+] SDMS — imported identity and platform tenancy. The primary id remains
+  // the original Firebase UID; alternate Firebase accounts resolve through
+  // AuthIdentity instead of rewriting any foreign key.
+  studentCode         String?      @unique
+  nameAsImported      String?
+  gender              Gender?
+  platformRole        PlatformRole @default(USER)
+  contactEmail        String?
+  authKind            String       @default("GOOGLE")
+  passwordOverridden  Boolean      @default(false)
+  lastSignInAt        DateTime?
+  archivedAt          DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -106,8 +174,296 @@ model User {
   authoredReports    ReportComment[]      @relation("AuthoredReportComments")
   studentReports     ReportComment[]      @relation("StudentReportComments")
 
+  // [+] SDMS
+  schoolMemberships SchoolMember[]
+  cohortMemberships CohortMember[]
+  identities        AuthIdentity[]
+
   @@index([role])
   @@index([isAdmin])
+  @@index([platformRole])
+  @@index([archivedAt])
+}
+
+/// [+] A school is the tenant boundary. Course-owned records inherit tenancy
+/// through Course.schoolId; users may belong to more than one school.
+model School {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  createdById String?
+  disabledAt  DateTime?
+  isLegacy    Boolean   @default(false)
+  /// Existing schools require approval; the flag makes the policy explicit and
+  /// leaves room for a future open-join school without changing this schema.
+  requiresApproval Boolean @default(true)
+  createdAt   DateTime  @default(now())
+
+  members          SchoolMember[]
+  combinations     Combination[]
+  cohorts          Cohort[]
+  courses          Course[]
+  terms            Term[]
+  joinCodes        JoinCode[]
+  invites          SchoolInvite[]
+  imports          CohortImport[]
+  importPreviews   ImportPreview[]
+  assignmentGroups AssignmentGroup[]
+  auditEvents      AuditEvent[]
+
+  @@index([isLegacy])
+  @@index([disabledAt])
+}
+
+model SchoolMember {
+  id          String             @id @default(cuid())
+  schoolId    String
+  userId      String
+  role        SchoolRole         @default(TEACHER)
+  status      SchoolMemberStatus @default(PENDING)
+  requestedAt DateTime           @default(now())
+  decidedById String?
+  decidedAt   DateTime?
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, userId])
+  @@index([userId, status])
+  @@index([schoolId, role, status])
+}
+
+model SchoolInvite {
+  id           String     @id @default(cuid())
+  schoolId     String
+  email        String?
+  role         SchoolRole @default(TEACHER)
+  tokenHash    String     @unique
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  acceptedById String?
+  createdById  String
+  createdAt    DateTime   @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, email])
+}
+
+model JoinCode {
+  id        String       @id @default(cuid())
+  code      String       @unique
+  kind      JoinCodeKind
+  schoolId  String?
+  cohortId  String?
+  courseId  String?
+  createdAt DateTime     @default(now())
+
+  school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  cohort Cohort? @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([kind])
+  @@index([schoolId])
+  @@index([cohortId])
+  @@index([courseId])
+}
+
+model Combination {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String
+  shortName String
+  stream    String?
+  /// Retained for display/debugging. Import resolution uses CombinationAlias,
+  /// whose normalized value is unique inside a school.
+  aliases   String[] @default([])
+  createdAt DateTime @default(now())
+
+  school      School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  cohorts     Cohort[]
+  aliasRows   CombinationAlias[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model CombinationAlias {
+  id             String @id @default(cuid())
+  schoolId       String
+  combinationId  String
+  alias          String
+  normalizedAlias String
+
+  combination Combination @relation(fields: [combinationId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, normalizedAlias])
+  @@index([combinationId])
+}
+
+model Cohort {
+  id               String         @id @default(cuid())
+  schoolId         String
+  combinationId    String
+  label            String
+  grade            String
+  rawGrade         String?
+  academicYear     Int
+  passwordSeedYear Int
+  passwordPolicy   PasswordPolicy @default(DEFAULT)
+  passwordSetAt    DateTime?
+  ownerId          String?
+  createdById      String?
+  archivedAt       DateTime?
+  createdAt        DateTime       @default(now())
+
+  school      School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  combination Combination   @relation(fields: [combinationId], references: [id], onDelete: Restrict)
+  members     CohortMember[]
+  courses     Course[]
+  imports     CohortImport[]
+  joinCodes   JoinCode[]
+
+  @@unique([schoolId, label, academicYear])
+  @@index([schoolId, academicYear])
+  @@index([combinationId])
+}
+
+model CohortMember {
+  id                 String       @id @default(cuid())
+  cohortId           String
+  userId             String
+  status             MemberStatus @default(ACTIVE)
+  claimedAt          DateTime?
+  claimedIpHash      String?
+  lastSignInAt       DateTime?
+  mustChangePassword Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+
+  cohort   Cohort         @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  disputes ClaimDispute[]
+
+  @@unique([cohortId, userId])
+  @@index([userId, status])
+  @@index([cohortId, status])
+}
+
+/// The parsed workbook lives server-side for thirty minutes. Only the opaque
+/// preview token goes to the browser; passwords and rows never go into a JWT.
+model ImportPreview {
+  id          String    @id @default(cuid())
+  schoolId    String
+  createdById String
+  tokenHash   String    @unique
+  commitKey   String    @unique
+  fileName    String
+  fileHash    String
+  payload     Json
+  expiresAt   DateTime
+  committedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, createdById, expiresAt])
+}
+
+model CohortImport {
+  id             String         @id @default(cuid())
+  cohortId       String
+  schoolId       String
+  fileName       String
+  fileHash       String
+  importedById   String?
+  rows           Int
+  created        Int
+  updated        Int
+  skipped        Int
+  warnings       Json
+  passwordPolicy PasswordPolicy
+  createdAt      DateTime       @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  cohort Cohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+
+  @@index([cohortId, createdAt])
+}
+
+/// One row per Firebase project + UID. Both password and Google Firebase
+/// accounts use provider "firebase"; the sign-in method is not an identity key.
+model AuthIdentity {
+  id          String   @id @default(cuid())
+  userId      String
+  provider    String   @default("firebase")
+  projectId   String
+  providerUid String
+  email       String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, projectId, providerUid])
+  @@index([userId])
+}
+
+model ClaimDispute {
+  id           String    @id @default(cuid())
+  memberId     String
+  code         String
+  note         String?
+  ipHash       String?
+  resolvedAt   DateTime?
+  resolvedById String?
+  createdAt    DateTime  @default(now())
+
+  member CohortMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, resolvedAt])
+  @@index([code])
+}
+
+model AssignmentGroup {
+  id          String   @id @default(cuid())
+  schoolId    String
+  createdById String
+  title       String
+  subject     String?
+  createdAt   DateTime @default(now())
+
+  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assignments Assignment[]
+
+  @@index([schoolId])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  codeHash  String
+  ipHash    String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([codeHash, createdAt])
+  @@index([ipHash, createdAt])
+}
+
+/// Append-only audit metadata. Student names, codes, passwords and workbook
+/// contents are deliberately excluded from this record.
+model AuditEvent {
+  id         String   @id @default(cuid())
+  schoolId   String?
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  school School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 /// [+] CLA Bridge: the student's chosen school level. Students are locked to
@@ -219,6 +575,16 @@ model Course {
   /// [+] Module C — stream moderation setting.
   postPolicy  PostPolicy @default(STUDENTS_CAN_POST_AND_COMMENT)
 
+  // [+] SDMS — nullable during the additive migration. Existing rows are
+  // backfilled to the Legacy school before tenant constraints are enforced.
+  schoolId String?
+  cohortId String?
+  kind     CourseKind @default(SUBJECT)
+
+  school School? @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  cohort Cohort? @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+
+  joinCodes     JoinCode[]
   enrollments   Enrollment[]
   announcements Announcement[]
   assignments   Assignment[]
@@ -235,6 +601,9 @@ model Course {
 
   @@index([teacherId])
   @@index([archived])
+  @@index([schoolId])
+  @@index([cohortId])
+  @@unique([cohortId, subject, kind])
 }
 
 model Enrollment {
@@ -248,9 +617,14 @@ model Enrollment {
 
   /// [+] Module C — "Moderation controls allowing teachers to ... mute students"
   muted Boolean @default(false)
+  /// [+] SDMS — LEFT/MOVED students lose current access without deleting the
+  /// enrollment row that anchors historical marks and submissions.
+  active  Boolean   @default(true)
+  leftAt  DateTime?
 
   @@unique([userId, courseId])
   @@index([courseId])
+  @@index([courseId, active])
   @@index([userId])
 }
 
@@ -319,6 +693,12 @@ model Assignment {
   allowLateSubmissions  Boolean @default(true)
   updatedAt DateTime       @updatedAt
 
+  // [+] SDMS — copies created together remain independently gradable.
+  groupId   String?
+  group     AssignmentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  /// Per-class fields deliberately changed after a group-wide edit.
+  overrides Json?
+
   attachments Attachment[]
   rubric      RubricCriterion[] // [+] Module D — "rubric breakdown"
   comments    Comment[]
@@ -326,6 +706,8 @@ model Assignment {
 
   @@index([courseId, createdAt])
   @@index([topicId])
+  @@index([groupId])
+  @@unique([groupId, courseId])
 }
 
 /// [+] Module D — "grade input, rubric breakdown, and private comments"
@@ -472,7 +854,8 @@ enum RequestStatus {
   DECLINED
 }
 
-/// [+] A reporting period. Exactly one term should be `isActive` at a time.
+/// [+] A reporting period. Exactly one term should be active per school.
+/// schoolId is nullable only for the additive legacy migration window.
 model Term {
   id           String   @id @default(cuid())
   academicYear String // "2026-2027"
@@ -480,13 +863,15 @@ model Term {
   startsOn     DateTime
   endsOn       DateTime
   isActive     Boolean  @default(false)
+  schoolId     String?
+  school       School?  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
 
   gradeCategories GradeCategory[]
   gradeItems      GradeItem[]
   reportComments  ReportComment[]
 
   @@unique([academicYear, name])
-  @@index([isActive])
+  @@index([schoolId, isActive])
 }
 
 /// [+] A recurring weekly slot. Courses meet on a pattern, not on dates.

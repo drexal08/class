@@ -10,6 +10,10 @@ import {
   isFirebaseAdminConfigured,
 } from "@/lib/env";
 import { getAdminAuth } from "@/lib/firebase/admin";
+import {
+  ensureAuthIdentity,
+  resolveCanonicalUser,
+} from "@/lib/auth/identity";
 import { prisma } from "@/lib/prisma";
 import { accountRoleDecision } from "@/lib/rules";
 import { sessionSchema } from "@/lib/validators";
@@ -73,9 +77,10 @@ export async function DELETE() {
   return NextResponse.json({ ok: true });
 }
 
-async function signInWithFirebase(
+export async function signInWithFirebase(
   idToken: string,
   intendedRole?: "TEACHER" | "STUDENT",
+  options?: { requiredStudentCode?: string },
 ) {
   const auth = await getAdminAuth();
   if (!auth) {
@@ -97,25 +102,38 @@ async function signInWithFirebase(
     );
   }
 
-  const email = decoded.email ?? "";
+  const email = decoded.email?.trim().toLowerCase() ?? "";
   const displayName = (decoded.name as string | undefined) ?? null;
   const avatarUrl = (decoded.picture as string | undefined) ?? null;
+  const bootstrapSuperuser = shouldBootstrapSuperuser(decoded);
+  const existing = await resolveCanonicalUser(decoded.uid);
 
-  const existing = await prisma.user.findUnique({
-    where: { id: decoded.uid },
-    select: { id: true, role: true },
-  });
+  if (options?.requiredStudentCode) {
+    if (
+      !existing ||
+      existing.role !== "STUDENT" ||
+      existing.studentCode !== options.requiredStudentCode
+    ) {
+      return NextResponse.json(
+        { error: "Code or password is incorrect." },
+        { status: 401 },
+      );
+    }
+  }
 
   const decision = accountRoleDecision({
     existingRole: existing?.role ?? null,
     intendedRole,
   });
 
-  // A brand-new account has to say what it is before it is created. Creating
-  // it silently as a student put every Google sign-up into the student
-  // experience — a teacher who clicked "Continue with Google" ended up with
-  // no way to create a class and no way to change their role.
+  // Imported code accounts must never be offered a self-selected role.
   if (decision.kind === "ask") {
+    if (options?.requiredStudentCode) {
+      return NextResponse.json(
+        { error: "Code or password is incorrect." },
+        { status: 401 },
+      );
+    }
     return askForRole(email || null, displayName);
   }
 
@@ -127,28 +145,53 @@ async function signInWithFirebase(
         displayName,
         avatarUrl,
         role: decision.role,
+        authKind: decoded.firebase?.sign_in_provider === "google.com" ? "GOOGLE" : "EMAIL",
+        platformRole: bootstrapSuperuser ? "SUPERUSER" : "USER",
+        lastSignInAt: new Date(),
       },
-      select: { id: true, role: true },
+      select: { id: true, role: true, platformRole: true },
     });
-
+    await ensureAuthIdentity({ userId: created.id, providerUid: decoded.uid, email });
     await createFirebaseSession(idToken);
-    return NextResponse.json({ ok: true, role: created.role });
+    return NextResponse.json({ ok: true, role: created.role, platformRole: created.platformRole });
   }
 
-  // An account that already exists keeps the role it was given. Honouring a
-  // role on update would let any signed-in user promote themselves.
+  const isPrimaryIdentity = existing!.id === decoded.uid;
   const updated = await prisma.user.update({
     where: { id: existing!.id },
     data: {
-      email,
+      // A secondary UID must not flip the canonical account between Google and
+      // synthetic addresses. CODE accounts always retain their auth email.
+      email: isPrimaryIdentity && existing!.authKind !== "CODE" && email ? email : undefined,
       displayName: displayName ?? undefined,
       avatarUrl: avatarUrl ?? undefined,
+      contactEmail: !isPrimaryIdentity && decoded.email_verified && email ? email : undefined,
+      platformRole: bootstrapSuperuser ? "SUPERUSER" : undefined,
+      lastSignInAt: new Date(),
     },
-    select: { id: true, role: true },
+    select: { id: true, role: true, platformRole: true },
+  });
+  await prisma.cohortMember.updateMany({
+    where: { userId: updated.id, status: "ACTIVE" },
+    data: { lastSignInAt: new Date() },
   });
 
   await createFirebaseSession(idToken);
-  return NextResponse.json({ ok: true, role: updated.role });
+  return NextResponse.json({ ok: true, role: updated.role, platformRole: updated.platformRole });
+}
+
+function shouldBootstrapSuperuser(decoded: {
+  email?: string;
+  email_verified?: boolean;
+}): boolean {
+  if (!decoded.email_verified || !decoded.email) return false;
+  const allowed = new Set(
+    (process.env.SUPERUSER_EMAILS ?? "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  return allowed.has(decoded.email.toLowerCase());
 }
 
 async function signInForDevelopment(

@@ -9,12 +9,14 @@ import {
   requireAssignmentManager,
   runAction,
 } from "@/lib/auth/guards";
+import { requireSchoolAdmin } from "@/lib/sdms/access";
 import { notifyCourse } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { courseChannel, publish } from "@/lib/realtime/server";
 import { deleteObject } from "@/lib/storage/s3";
 import type { ActionState } from "@/lib/types";
 import {
+  createAssignmentGroupSchema,
   createAssignmentSchema,
   createTopicSchema,
   firstIssue,
@@ -161,7 +163,7 @@ export async function updateAssignmentAction(
     const rubric = parseRubric(formData);
     if ("error" in rubric) return { error: rubric.error };
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: import("@/generated/prisma/client").Prisma.TransactionClient) => {
       await tx.assignment.updateMany({
         where: { id: assignmentId, courseId },
         data: {
@@ -212,7 +214,7 @@ export async function deleteAssignmentAction(
 
     await prisma.assignment.deleteMany({ where: { id: assignmentId, courseId } });
     await Promise.all(
-      attachments.map((attachment) => deleteObject(attachment.key)),
+      attachments.map((attachment: { key: string }) => deleteObject(attachment.key)),
     );
 
     revalidatePath(`/course/${courseId}/classwork`);

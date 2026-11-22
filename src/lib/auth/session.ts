@@ -4,6 +4,14 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { cache } from "react";
 
+import { assertClaimed } from "@/lib/auth/claim";
+import {
+  AccountDisabledError,
+  IdentityConflictError,
+  resolveCanonicalUser,
+  sessionUserSelect,
+  toSessionUser,
+} from "@/lib/auth/identity";
 import { getAdminAuth } from "@/lib/firebase/admin";
 import { isDevAuthEnabled, isFirebaseAdminConfigured } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
@@ -32,9 +40,13 @@ const COOKIE_OPTIONS = {
  * function share a single cookie verification and a single database read per
  * request instead of repeating both four or five times.
  */
-export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+export const getCurrentUser = cache(async (options?: {
+  allowUnclaimed?: boolean;
+}): Promise<SessionUser | null> => {
   const result = await lookupSession();
-  return result.status === "signed-in" ? result.user : null;
+  if (result.status !== "signed-in") return null;
+  if (!options?.allowUnclaimed) await assertClaimed(result.user.id);
+  return result.user;
 });
 
 /**
@@ -52,20 +64,18 @@ export const lookupSession = cache(async (): Promise<SessionLookup> => {
   if (uid.status !== "ok") return uid;
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: uid.uid },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-        avatarUrl: true,
-        role: true,
-        isAdmin: true,
-      },
-    });
-    if (!user) return { status: "invalid" };
-    return { status: "signed-in", user };
+    const user = uid.provider === "firebase"
+      ? await resolveCanonicalUser(uid.uid)
+      : await prisma.user.findUnique({
+          where: { id: uid.uid },
+          select: sessionUserSelect,
+        });
+    if (!user || user.archivedAt) return { status: "invalid" };
+    return { status: "signed-in", user: toSessionUser(user) };
   } catch (error) {
+    if (error instanceof AccountDisabledError || error instanceof IdentityConflictError) {
+      return { status: "invalid" };
+    }
     // A missing or unreachable database must read as "signed out", never a 500.
     console.error("[auth] Could not load the current user", error);
     return { status: "unavailable" };
@@ -97,7 +107,9 @@ const REJECTED_SESSION_CODES = new Set([
 async function resolveUid(
   token: string,
 ): Promise<
-  { status: "ok"; uid: string } | { status: "invalid" } | { status: "unavailable" }
+  | { status: "ok"; uid: string; provider: "firebase" | "dev" }
+  | { status: "invalid" }
+  | { status: "unavailable" }
 > {
   if (isFirebaseAdminConfigured()) {
     const auth = await getAdminAuth();
@@ -106,7 +118,7 @@ async function resolveUid(
       // `true` checks the token against revoked sessions — this is what makes
       // sign-out on one device take effect on the others.
       const decoded = await auth.verifySessionCookie(token, true);
-      return { status: "ok", uid: decoded.uid };
+      return { status: "ok", uid: decoded.uid, provider: "firebase" };
     } catch (error) {
       const code =
         typeof error === "object" && error !== null && "code" in error
@@ -120,7 +132,7 @@ async function resolveUid(
 
   if (isDevAuthEnabled()) {
     const uid = verifyDevToken(token);
-    return uid ? { status: "ok", uid } : { status: "invalid" };
+    return uid ? { status: "ok", uid, provider: "dev" } : { status: "invalid" };
   }
 
   return { status: "invalid" };

@@ -96,7 +96,7 @@ export async function deleteAnnouncementAction(
 
     await prisma.announcement.delete({ where: { id: announcementId } });
     await Promise.all(
-      announcement.attachments.map((attachment) =>
+      announcement.attachments.map((attachment: { key: string }) =>
         deleteObject(attachment.key),
       ),
     );

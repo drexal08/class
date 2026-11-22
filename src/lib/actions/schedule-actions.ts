@@ -64,7 +64,7 @@ export async function saveScheduleAction(
       };
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: import("@/generated/prisma/client").Prisma.TransactionClient) => {
       await tx.courseSchedule.deleteMany({ where: { courseId } });
       if (cleaned.length > 0) {
         await tx.courseSchedule.createMany({

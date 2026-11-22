@@ -36,7 +36,20 @@ writeFileSync(".env.production", envContent + "\n");
 console.log("Written .env.production with", requiredVars.filter((k) => process.env[k]).length, "variables");
 
 // Patch Prisma client to inline wasm query compiler
+// This is only needed for the default client on platforms where
+// new WebAssembly.Module() is not available (Cloudflare Workers).
+// On Cloudflare Workers we use the workerd-specific client (runtime = "workerd")
+// which uses static WASM imports instead, so we skip the patch.
 function patchPrismaWasm() {
+  // Skip patch for Cloudflare Workers builds - we use the workerd client
+  // which has static WASM imports and doesn't need this patch.
+  if (process.env.DEPLOYMENT_TARGET === "cloudflare") {
+    console.log("Skipping Prisma WASM patch for Cloudflare Workers (using workerd client)");
+    // Instead, patch the workerd client to use our workerd-compatible runtime shim
+    patchWorkerdClientRuntime();
+    return;
+  }
+
   const classTsPath = resolve("src/generated/prisma/internal/class.ts");
   const wasmBase64Path = resolve("node_modules/@prisma/client/runtime/query_compiler_fast_bg.postgresql.wasm-base64.mjs");
   const wasmLoaderPath = resolve("node_modules/@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs");
@@ -116,6 +129,47 @@ ${importsObj}
   console.log("Patched Prisma client with inlined wasm query compiler");
 }
 
+// Patch the workerd client's internal/class.ts to use our workerd-compatible runtime shim
+// instead of @prisma/client/runtime/wasm-compiler-edge which uses new WebAssembly.Module()
+function patchWorkerdClientRuntime() {
+  const workerdClassTsPath = resolve("src/generated/prisma-workerd/internal/class.ts");
+  const workerdClientTsPath = resolve("src/generated/prisma-workerd/client.ts");
+  
+  if (!existsSync(workerdClassTsPath)) {
+    console.warn("workerd class.ts not found, skipping runtime patch");
+    return;
+  }
+
+  let classTs = readFileSync(workerdClassTsPath, "utf8");
+  
+  // Replace the import of @prisma/client/runtime/wasm-compiler-edge with our shim
+  const originalImport = 'import * as runtime from "@prisma/client/runtime/wasm-compiler-edge"';
+  const shimImport = 'import * as runtime from "@/lib/prisma-workerd-runtime"';
+  
+  if (classTs.includes(originalImport)) {
+    classTs = classTs.replace(originalImport, shimImport);
+    writeFileSync(workerdClassTsPath, classTs);
+    console.log("Patched workerd client internal/class.ts to use workerd-compatible runtime shim");
+  } else {
+    console.warn("Could not find expected import in workerd class.ts, skipping runtime patch");
+  }
+
+  // Also patch client.ts which imports the edge runtime for types
+  if (existsSync(workerdClientTsPath)) {
+    let clientTs = readFileSync(workerdClientTsPath, "utf8");
+    const clientOriginalImport = 'import * as runtime from "@prisma/client/runtime/wasm-compiler-edge"';
+    const clientShimImport = 'import * as runtime from "@/lib/prisma-workerd-runtime"';
+    
+    if (clientTs.includes(clientOriginalImport)) {
+      clientTs = clientTs.replace(clientOriginalImport, clientShimImport);
+      writeFileSync(workerdClientTsPath, clientTs);
+      console.log("Patched workerd client client.ts to use workerd-compatible runtime shim");
+    } else {
+      console.warn("Could not find expected import in workerd client.ts, skipping runtime patch");
+    }
+  }
+}
+
 // Run prisma generate first
 console.log("Running prisma generate...");
 const generateResult = spawnSync("npx", ["prisma", "generate"], {
@@ -138,4 +192,20 @@ const buildResult = spawnSync("npx", ["next", "build"], {
   shell: true,
 });
 
-process.exit(buildResult.status);
+if (buildResult.status !== 0) {
+  process.exit(buildResult.status);
+}
+
+// Patch .next/server/ files to fix versioned Prisma runtime imports
+console.log("Patching .next/server/ files...");
+const patchResult = spawnSync("node", ["scripts/patch-next-server.mjs"], {
+  stdio: "inherit",
+  shell: true,
+});
+
+if (patchResult.status !== 0) {
+  console.error("Patching .next/server/ files failed");
+  process.exit(patchResult.status);
+}
+
+process.exit(0);

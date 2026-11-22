@@ -1,4 +1,9 @@
-import type { AssignmentType, Role, SubmissionState } from "@/generated/prisma/client";
+import type {
+  AssignmentType,
+  PlatformRole,
+  Role,
+  SubmissionState,
+} from "@/generated/prisma/client";
 
 /**
  * Return shape for every server action.
@@ -24,6 +29,10 @@ export type SessionUser = {
   role: Role;
   /** Administrator rights are an overlay on top of the role. */
   isAdmin: boolean;
+  /** Optional while older fixtures and dev sessions do not carry SDMS fields. */
+  platformRole?: PlatformRole;
+  studentCode?: string | null;
+  authKind?: string;
 };
 
 // ---------------------------------------------------------------------------

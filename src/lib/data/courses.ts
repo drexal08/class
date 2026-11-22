@@ -19,12 +19,33 @@ export type CourseSummary = Awaited<
   ReturnType<typeof listUserCourses>
 >[number];
 
-export async function listUserCourses() {
+export async function listUserCourses(): Promise<
+  Array<{
+    id: string;
+    name: string;
+    section: string | null;
+    subject: string | null;
+    room: string | null;
+    code: string;
+    accent: string;
+    archived: boolean;
+    teacher: { id: string; displayName: string | null; email: string };
+    _count: { enrollments: number; assignments: number };
+    enrollmentRole: import("@/generated/prisma/client").$Enums.Role;
+  }>
+> {
   const user = await getCurrentUser();
   if (!user) return [];
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { userId: user.id, course: { archived: false } },
+    where: {
+      userId: user.id,
+      active: true,
+      course: {
+        archived: false,
+        OR: [{ schoolId: null }, { school: { disabledAt: null } }],
+      },
+    },
     orderBy: { createdAt: "desc" },
     select: {
       role: true,
@@ -45,18 +66,51 @@ export async function listUserCourses() {
     },
   });
 
-  return enrollments.map((enrollment) => ({
+  return enrollments.map((enrollment: {
+    course: {
+      id: string;
+      name: string;
+      section: string | null;
+      subject: string | null;
+      room: string | null;
+      code: string;
+      accent: string;
+      archived: boolean;
+      teacher: { id: string; displayName: string | null; email: string };
+      _count: { enrollments: number; assignments: number };
+    };
+    role: import("@/generated/prisma/client").$Enums.Role;
+  }) => ({
     ...enrollment.course,
     enrollmentRole: enrollment.role,
   }));
 }
 
-export async function listArchivedCourses() {
+export async function listArchivedCourses(): Promise<
+  Array<{
+    id: string;
+    name: string;
+    section: string | null;
+    subject: string | null;
+    code: string;
+    accent: string;
+    archived: boolean;
+    teacher: { id: string; displayName: string | null; email: string };
+    enrollmentRole: import("@/generated/prisma/client").$Enums.Role;
+  }>
+> {
   const user = await getCurrentUser();
   if (!user) return [];
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { userId: user.id, course: { archived: true } },
+    where: {
+      userId: user.id,
+      active: true,
+      course: {
+        archived: true,
+        OR: [{ schoolId: null }, { school: { disabledAt: null } }],
+      },
+    },
     orderBy: { createdAt: "desc" },
     select: {
       role: true,
@@ -75,7 +129,19 @@ export async function listArchivedCourses() {
     },
   });
 
-  return enrollments.map((enrollment) => ({
+  return enrollments.map((enrollment: {
+    course: {
+      id: string;
+      name: string;
+      section: string | null;
+      subject: string | null;
+      code: string;
+      accent: string;
+      archived: boolean;
+      teacher: { id: string; displayName: string | null; email: string };
+    };
+    role: import("@/generated/prisma/client").$Enums.Role;
+  }) => ({
     ...enrollment.course,
     enrollmentRole: enrollment.role,
   }));
@@ -104,20 +170,36 @@ export const getCourseForUser = cache(async (courseId: string) => {
       teacherId: true,
       description: true,
       postPolicy: true,
+      cohortId: true,
+      schoolId: true,
+      school: {
+        select: {
+          disabledAt: true,
+          members: {
+            where: { userId: user.id, status: "ACTIVE" },
+            select: { role: true },
+          },
+        },
+      },
       teacher: {
         select: { id: true, displayName: true, email: true, avatarUrl: true },
       },
       enrollments: {
         where: { userId: user.id },
-        select: { role: true },
+        select: { role: true, active: true },
       },
       _count: { select: { enrollments: true } },
     },
   });
-  if (!course) return null;
+  if (!course || course.school?.disabledAt) return null;
 
   const enrollment = course.enrollments[0] ?? null;
-  const access = resolveCourseAccess({ isAdmin: user.isAdmin, enrollment });
+  const schoolAdmin = course.school?.members[0]?.role === "ADMIN";
+  if (enrollment && !enrollment.active && !schoolAdmin) return null;
+  const resolved = resolveCourseAccess({ isAdmin: user.isAdmin, enrollment });
+  const access = resolved ?? (schoolAdmin
+    ? { role: "TEACHER" as const, isTeacher: true, canManage: true, isEnrolled: false }
+    : null);
   if (!access) return null;
 
   const { enrollments, ...rest } = course;
@@ -144,25 +226,41 @@ export async function getCourseByCode(code: string) {
       subject: true,
       accent: true,
       archived: true,
+      school: { select: { disabledAt: true } },
       teacher: { select: { displayName: true, email: true, avatarUrl: true } },
       _count: { select: { enrollments: true } },
       enrollments: {
-        where: { userId: user.id },
+        where: { userId: user.id, active: true },
         select: { id: true },
       },
     },
   });
-  if (!course) return null;
+  if (!course || course.school?.disabledAt) return null;
 
   const { enrollments, ...rest } = course;
   return { ...rest, alreadyEnrolled: enrollments.length > 0 };
 }
 
-export async function listCourseMembers(courseId: string) {
+export async function listCourseMembers(
+  courseId: string,
+): Promise<
+  Array<{
+    id: string;
+    role: import("@/generated/prisma/client").$Enums.Role;
+    muted: boolean;
+    createdAt: Date;
+    user: {
+      id: string;
+      displayName: string | null;
+      email: string | null;
+      avatarUrl: string | null;
+    };
+  }>
+> {
   const context = await requireCourseAccess(courseId);
 
   const members = await prisma.enrollment.findMany({
-    where: { courseId },
+    where: { courseId, active: true },
     orderBy: [{ role: "asc" }, { user: { displayName: "asc" } }],
     select: {
       id: true,
@@ -182,7 +280,13 @@ export async function listCourseMembers(courseId: string) {
 
   // Students see classmates but not their email addresses; teachers manage the
   // roster and need them.
-  return members.map((member) => ({
+  return members.map((member: {
+    id: string;
+    role: import("@/generated/prisma/client").$Enums.Role;
+    muted: boolean;
+    createdAt: Date;
+    user: { id: string; displayName: string | null; email: string | null; avatarUrl: string | null };
+  }) => ({
     ...member,
     user: {
       ...member.user,

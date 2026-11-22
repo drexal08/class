@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, GraduationCap, Loader2, School } from "lucide-react";
+import { AlertCircle, GraduationCap, Loader2, Mail, Lock, School } from "lucide-react";
 
 import {
   devSignInAction,
@@ -13,6 +13,7 @@ import {
   signUpAction,
   type AuthOutcome,
 } from "@/components/auth/auth-client";
+import { StudentCodeLogin } from "@/components/auth/student-code-login";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -198,6 +199,14 @@ export function AuthForm({
             <GoogleMark />
             Continue with Google
           </Button>
+
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <StudentCodeLogin next={params.get("next") ?? undefined} />
 
           <div className="my-5 flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />

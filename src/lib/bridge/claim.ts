@@ -180,7 +180,7 @@ export async function claimLegacyRow(
   // writes themselves are a handful of rows, so a longer ceiling is safe and
   // a slow cold start must not cost the student their imported data.
   return prisma.$transaction(
-    async (tx) => {
+    async (tx: import("@/generated/prisma/client").Prisma.TransactionClient) => {
       // Re-read inside the transaction: two parallel claims of the same row
       // must not both create a profile.
       const row = await tx.bridgeLegacyStudent.findUnique({

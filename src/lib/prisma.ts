@@ -1,10 +1,16 @@
 import "server-only";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-
-import { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 import { isCloudflareWorkers, getCloudflareBindings } from "@/lib/cloudflare";
+import { createLazyClientProxy } from "@/lib/lazy-client-proxy";
+
+// The two generated clients are structurally incompatible at the generic type
+// level. Keep this dynamic boundary erased; feature modules retain their own
+// explicit DTO types instead of recursing through two Prisma type universes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PrismaClient = any;
 
 /**
  * Lazy Prisma singleton.
@@ -17,11 +23,15 @@ import { isCloudflareWorkers, getCloudflareBindings } from "@/lib/cloudflare";
  * build depend on a reachable database. The first *property access* (i.e. the
  * first real query, at request time) creates it.
  *
+ * On Cloudflare Workers we use the workerd-specific client (runtime = "workerd")
+ * which uses static WASM imports instead of `new WebAssembly.Module(base64)`.
+ * On Node/Vercel we use the default client.
+ *
  * The instance is cached on `globalThis` so hot-reload in development does not
  * open a new connection pool on every edit.
  */
 const globalForPrisma = globalThis as unknown as {
-  __lmsPrisma?: PrismaClient;
+  __lmsPrismaPromise?: Promise<PrismaClient>;
 };
 
 export class DatabaseNotConfiguredError extends Error {
@@ -33,13 +43,15 @@ export class DatabaseNotConfiguredError extends Error {
   }
 }
 
-function createClient(): PrismaClient {
+async function createClient(): Promise<PrismaClient> {
   // On Cloudflare Workers with Hyperdrive, use the Hyperdrive connection string.
   // Hyperdrive exposes the connection string via the binding object.
   let connectionString = process.env.DATABASE_URL;
   if (isCloudflareWorkers()) {
     const bindings = getCloudflareBindings();
-    const hyperdrive = bindings?.HYPERDRIVE as { connectionString?: string } | undefined;
+    const hyperdrive = bindings?.HYPERDRIVE as
+      | { connectionString?: string }
+      | undefined;
     if (hyperdrive?.connectionString) {
       connectionString = hyperdrive.connectionString;
     }
@@ -54,20 +66,29 @@ function createClient(): PrismaClient {
     ...(isCloudflareWorkers() ? { maxUses: 1 } : {}),
   });
 
-  return new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+  const log: Prisma.LogLevel[] = process.env.NODE_ENV === "development"
+    ? ["warn", "error"]
+    : ["error"];
+  const options = { adapter, log };
+
+  // The Workers alias points @prisma/client at the workerd-generated client.
+  // Node/Vercel must use this project's custom generated output, not the
+  // uninitialized @prisma/client package stub. Keep the branches separate so
+  // TypeScript never has to unify the two generated constructor signatures.
+  if (isCloudflareWorkers()) {
+    const { PrismaClient: WorkerdClient } = await import("@prisma/client");
+    return new WorkerdClient(options);
+  }
+  const { PrismaClient: NodeClient } = await import("@/generated/prisma/client");
+  return new NodeClient(options);
 }
 
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_target, property, receiver) {
-    if (!globalForPrisma.__lmsPrisma) {
-      globalForPrisma.__lmsPrisma = createClient();
-    }
-    const value = Reflect.get(globalForPrisma.__lmsPrisma, property, receiver);
-    return typeof value === "function"
-      ? value.bind(globalForPrisma.__lmsPrisma)
-      : value;
-  },
-});
+async function loadClient(): Promise<PrismaClient> {
+  globalForPrisma.__lmsPrismaPromise ??= createClient().catch((error: unknown) => {
+    delete globalForPrisma.__lmsPrismaPromise;
+    throw error;
+  });
+  return globalForPrisma.__lmsPrismaPromise;
+}
+
+export const prisma = createLazyClientProxy<PrismaClient>(loadClient);

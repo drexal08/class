@@ -9,6 +9,14 @@
 import { isCloudflareWorkers, getCloudflareBindings } from "@/lib/cloudflare";
 
 export function isDatabaseConfigured(): boolean {
+  // On Cloudflare Workers, Hyperdrive provides the connection string via binding
+  if (isCloudflareWorkers()) {
+    const bindings = getCloudflareBindings();
+    const hyperdrive = bindings?.HYPERDRIVE as
+      | { connectionString?: string }
+      | undefined;
+    if (hyperdrive?.connectionString) return true;
+  }
   return Boolean(process.env.DATABASE_URL);
 }
 

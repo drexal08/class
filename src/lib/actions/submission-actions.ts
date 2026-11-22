@@ -201,7 +201,7 @@ export async function submitWorkAction(
       title: `${context.user.displayName ?? context.user.email} turned in ${assignment.title}`,
       linkPath: `/course/${courseId}/classwork/${assignmentId}/grade`,
       actorId: context.user.id,
-      recipientIds: teachers.map((teacher) => teacher.userId),
+      recipientIds: teachers.map((teacher: { userId: string }) => teacher.userId),
     });
   });
 }
@@ -288,7 +288,7 @@ export async function gradeSubmissionAction(
     );
     if (rubricError) return { error: rubricError };
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: import("@/generated/prisma/client").Prisma.TransactionClient) => {
       const gradedAt = new Date();
 
       await tx.submission.update({
@@ -428,7 +428,7 @@ export async function returnAllAction(
     revalidatePath(`/course/${courseId}/grades`);
 
     await Promise.all(
-      graded.map((submission) =>
+      graded.map((submission: { studentId: string }) =>
         publish(userChannel(submission.studentId), "submission:graded", {
           actorId: context.user.id,
           id: assignmentId,
@@ -437,7 +437,7 @@ export async function returnAllAction(
     );
 
     await Promise.all(
-      graded.map((submission) =>
+      graded.map((submission: { studentId: string }) =>
         notifyCourse({
           courseId,
           type: "GRADE_RETURNED",

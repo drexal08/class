@@ -64,9 +64,9 @@ export async function listStagedBridgeStudents() {
     prisma.user.findMany({ select: { email: true } }),
   ]);
 
-  const known = new Set(accounts.map((account) => account.email.toLowerCase()));
+  const known = new Set(accounts.map((account: { email: string }) => account.email.toLowerCase()));
 
-  return rows.map((row) => ({
+  return rows.map((row: { email: string | null }) => ({
     ...row,
     hasAccount: row.email ? known.has(row.email.toLowerCase()) : false,
   }));

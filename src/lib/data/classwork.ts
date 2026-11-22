@@ -20,7 +20,9 @@ const attachmentSelect = {
 
 export type ClassworkItem = Awaited<ReturnType<typeof listAssignments>>[number];
 
-export async function listTopics(courseId: string) {
+export async function listTopics(
+  courseId: string,
+): Promise<Array<{ id: string; name: string; sortOrder: number }>> {
   await requireCourseAccess(courseId);
 
   return prisma.topic.findMany({
@@ -36,7 +38,29 @@ export async function listTopics(courseId: string) {
  * Students only ever see published items; the draft filter is applied in the
  * query so an unpublished assignment is never serialised to the client.
  */
-export async function listAssignments(courseId: string) {
+export async function listAssignments(
+  courseId: string,
+): Promise<
+  Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    type: import("@/generated/prisma/client").$Enums.AssignmentType;
+    dueDate: Date | null;
+    maxPoints: number;
+    topicId: string | null;
+    published: boolean;
+    createdAt: Date;
+    turnedInCount: number;
+    mySubmission:
+      | {
+          id: string;
+          status: import("@/generated/prisma/client").$Enums.SubmissionState;
+          grade: number | null;
+        }
+      | null;
+  }>
+> {
   const context = await requireCourseAccess(courseId);
 
   const assignments = await prisma.assignment.findMany({
@@ -68,7 +92,24 @@ export async function listAssignments(courseId: string) {
     },
   });
 
-  return assignments.map((assignment) => {
+  return assignments.map((assignment: {
+    submissions: Array<{ id: string; status: import("@/generated/prisma/client").$Enums.SubmissionState; grade: number | null }>;
+    id: string;
+    title: string;
+    description: string | null;
+    type: import("@/generated/prisma/client").$Enums.AssignmentType;
+    dueDate: Date | null;
+    maxPoints: number;
+    published: boolean;
+    acceptingSubmissions: boolean;
+    allowLateSubmissions: boolean;
+    createdAt: Date;
+    courseId: string;
+    topic: { id: string; name: string } | null;
+    attachments: Array<{ id: string; name: string; url: string; mimeType: string | null; size: number; uploadedById: string }>;
+    rubric: Array<{ id: string; title: string; description: string | null; points: number; sortOrder: number }>;
+    _count: { submissions: number };
+  }) => {
     const { submissions, ...rest } = assignment;
     // Both branches select the same columns, so the row type is stable; only
     // the filter differs.
@@ -94,7 +135,29 @@ export async function listAssignments(courseId: string) {
  * A single assignment, scoped to its course in the `where` clause so an id from
  * another class simply does not resolve.
  */
-export async function getAssignment(courseId: string, assignmentId: string) {
+export async function getAssignment(
+  courseId: string,
+  assignmentId: string,
+): Promise<
+  | (null | {
+      id: string;
+      title: string;
+      description: string | null;
+      type: import("@/generated/prisma/client").$Enums.AssignmentType;
+      dueDate: Date | null;
+      maxPoints: number;
+      published: boolean;
+      acceptingSubmissions: boolean;
+      allowLateSubmissions: boolean;
+      createdAt: Date;
+      courseId: string;
+      topic: { id: string; name: string } | null;
+      attachments: Array<{ id: string; name: string; url: string; mimeType: string | null; size: number; uploadedById: string }>;
+      rubric: Array<{ id: string; title: string; description: string | null; points: number; sortOrder: number }>;
+      _count: { submissions: number };
+      viewerIsTeacher: boolean;
+    })
+> {
   const context = await requireCourseAccess(courseId);
 
   const assignment = await prisma.assignment.findFirst({

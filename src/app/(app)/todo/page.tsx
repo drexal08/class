@@ -98,6 +98,17 @@ async function StudentTodo() {
 async function TeacherTodo() {
   const { toReview, graded } = await getTeacherTodo();
 
+  type TeacherItem = {
+    id: string;
+    title: string;
+    dueDate: Date | null;
+    maxPoints: number;
+    type: import("@/generated/prisma/client").$Enums.AssignmentType;
+    course: { id: string; name: string; accent: string };
+    turnedIn: number;
+    graded: number;
+  };
+
   return (
     <Tabs defaultValue="review">
       <TabsList>
@@ -118,7 +129,7 @@ async function TeacherTodo() {
         ) : (
           <Card className="overflow-hidden">
             <ul className="divide-y divide-border">
-              {toReview.map((item) => (
+              {toReview.map((item: TeacherItem) => (
                 <li key={item.id}>
                   <Link
                     href={`/course/${item.course.id}/classwork/${item.id}/grade`}
@@ -152,7 +163,7 @@ async function TeacherTodo() {
         ) : (
           <Card className="overflow-hidden">
             <ul className="divide-y divide-border">
-              {graded.map((item) => (
+              {graded.map((item: TeacherItem) => (
                 <li key={item.id}>
                   <Link
                     href={`/course/${item.course.id}/classwork/${item.id}/grade`}

@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
+import path from "path";
+
+const isCloudflareBuild = process.env.DEPLOYMENT_TARGET === "cloudflare";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    resolveAlias: isCloudflareBuild
+      ? {
+          "@prisma/client": "src/generated/prisma-workerd/client",
+        }
+      : undefined,
+  },
   experimental: {
     // Next's client router cache defaults to zero for dynamic routes, so every
     // tab switch refetches the whole RSC payload. A short window makes moving
@@ -31,16 +41,16 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [],
 
   // firebase-admin ships in Next's built-in externals list, so omitting it
-  // above is not enough — that list is added to, not replaced. Naming it here
-  // opts it out and forces the bundler to resolve the jose ESM import at build
-  // time instead of leaving a runtime require() that cannot.
-  //
-  // pg must also be transpiled/bundled for Cloudflare Workers: the Prisma
-  // adapter imports it, and the Worker build cannot load it as an external
-  // module.
-  transpilePackages: ["firebase-admin", "pg"],
+    // above is not enough — that list is added to, not replaced. Naming it here
+    // opts it out and forces the bundler to resolve the jose ESM import at build
+    // time instead of leaving a runtime require() that cannot.
+    //
+    // pg must also be transpiled/bundled for Cloudflare Workers: the Prisma
+    // adapter imports it, and the Worker build cannot load it as an external
+    // module.
+    transpilePackages: ["firebase-admin", "pg"],
 
-  images: {
+    images: {
       remotePatterns: [
         // Google account photos, used as avatars after Google sign-in.
         { protocol: "https", hostname: "lh3.googleusercontent.com" },

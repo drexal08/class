@@ -69,7 +69,7 @@ async function createCourseWithUniqueCode(
     try {
       // The course and its teacher enrollment must land together, or the
       // creator ends up locked out of their own class.
-      return await prisma.$transaction(async (tx) => {
+      return await prisma.$transaction(async (tx: import("@/generated/prisma/client").Prisma.TransactionClient) => {
         const course = await tx.course.create({
           data: {
             ...data,

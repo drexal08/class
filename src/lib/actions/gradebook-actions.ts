@@ -174,9 +174,9 @@ export async function saveCategorySetAction(
       },
     });
 
-    const existingIds = new Set(existing.map((category) => category.id));
+    const existingIds = new Set(existing.map((category: { id: string }) => category.id));
     const submittedIds = new Set(
-      categories.flatMap((category) => (category.id ? [category.id] : [])),
+      categories.flatMap((category: { id?: string }) => (category.id ? [category.id] : [])),
     );
 
     for (const category of categories) {
@@ -185,15 +185,15 @@ export async function saveCategorySetAction(
       }
     }
 
-    const removed = existing.filter((category) => !submittedIds.has(category.id));
-    const blocked = removed.find((category) => category._count.items > 0);
+    const removed = existing.filter((category: { id: string; _count: { items: number } }) => !submittedIds.has(category.id));
+    const blocked = removed.find((category: { id: string; name: string; _count: { items: number } }) => category._count.items > 0);
     if (blocked) {
       return {
         error: `"${blocked.name}" still has grade items. Delete them before removing the category.`,
       };
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: import("@/generated/prisma/client").Prisma.TransactionClient) => {
       for (const category of categories) {
         if (category.id) {
           await tx.gradeCategory.update({
@@ -215,7 +215,7 @@ export async function saveCategorySetAction(
       if (removed.length > 0) {
         await tx.gradeCategory.deleteMany({
           where: {
-            id: { in: removed.map((category) => category.id) },
+            id: { in: removed.map((category: { id: string }) => category.id) },
             courseId,
             termId,
           },

@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { getCurrentUser } from "@/lib/auth/session";
+import { ClaimRequiredError } from "@/lib/auth/claim";
 import { prisma } from "@/lib/prisma";
 import {
   canCommentOnStream,
@@ -29,6 +30,8 @@ export type CourseContext = {
   courseName: string;
   /** The class owner, for targeted notifications. */
   teacherId: string;
+  schoolId: string | null;
+  cohortId: string | null;
   role: Role;
   /** May read teacher-only surfaces. */
   isTeacher: boolean;
@@ -40,8 +43,10 @@ export type CourseContext = {
   muted: boolean;
 };
 
-export async function requireUser(): Promise<SessionUser> {
-  const user = await getCurrentUser();
+export async function requireUser(options?: {
+  allowUnclaimed?: boolean;
+}): Promise<SessionUser> {
+  const user = await getCurrentUser(options);
   if (!user) throw new AuthError("You need to sign in to continue");
   return user;
 }
@@ -76,16 +81,37 @@ export const requireCourseAccess = cache(
         teacherId: true,
         archived: true,
         postPolicy: true,
+        cohortId: true,
+        schoolId: true,
+        school: {
+          select: {
+            disabledAt: true,
+            members: {
+              where: { userId: user.id, status: "ACTIVE" },
+              select: { role: true },
+            },
+          },
+        },
         enrollments: {
           where: { userId: user.id },
-          select: { role: true, muted: true },
+          select: { role: true, muted: true, active: true },
         },
       },
     });
     if (!course) throw new AuthError("That class no longer exists");
 
+    if (course.school?.disabledAt) {
+      throw new AuthError("This school is disabled");
+    }
     const enrollment = course.enrollments[0] ?? null;
-    const access = resolveCourseAccess({ isAdmin: user.isAdmin, enrollment });
+    const schoolAdmin = course.school?.members[0]?.role === "ADMIN";
+    if (enrollment && !enrollment.active && !schoolAdmin) {
+      throw new AuthError("You no longer have access to this class");
+    }
+    const resolved = resolveCourseAccess({ isAdmin: user.isAdmin, enrollment });
+    const access = resolved ?? (schoolAdmin
+      ? { role: "TEACHER" as const, isTeacher: true, canManage: true, isEnrolled: false }
+      : null);
     if (!access) throw new AuthError("You are not enrolled in this class");
 
     return {
@@ -93,6 +119,8 @@ export const requireCourseAccess = cache(
       courseId: course.id,
       courseName: course.name,
       teacherId: course.teacherId,
+      schoolId: course.schoolId,
+      cohortId: course.cohortId,
       role: access.role,
       isTeacher: access.isTeacher,
       canManage: access.canManage,
@@ -257,7 +285,9 @@ export async function runAction(
     // silently break every action that ends in a navigation.
     if (isNextControlFlow(error)) throw error;
 
-    if (error instanceof AuthError) return { error: error.message };
+    if (error instanceof AuthError || error instanceof ClaimRequiredError) {
+      return { error: error.message };
+    }
 
     console.error("[action] Unhandled failure", error);
     return { error: "Something went wrong. Please try again." };

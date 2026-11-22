@@ -39,7 +39,7 @@ export async function createTermAction(
       return { error: `${name} already exists in ${academicYear}` };
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: import("@/generated/prisma/client").Prisma.TransactionClient) => {
       if (isActive) {
         await tx.term.updateMany({
           where: { isActive: true },

@@ -31,13 +31,13 @@ export async function notifyCourse(input: NotifyInput): Promise<void> {
           where: { courseId: input.courseId, userId: { not: input.actorId } },
           select: { userId: true },
         })
-      ).map((enrollment) => enrollment.userId);
+      ).map((enrollment: { userId: string }) => enrollment.userId);
 
-    const targets = recipients.filter((id) => id !== input.actorId);
+    const targets = recipients.filter((id: string) => id !== input.actorId);
     if (targets.length === 0) return;
 
     await prisma.notification.createMany({
-      data: targets.map((userId) => ({
+      data: targets.map((userId: string) => ({
         userId,
         courseId: input.courseId,
         type: input.type,
@@ -48,7 +48,7 @@ export async function notifyCourse(input: NotifyInput): Promise<void> {
     });
 
     await Promise.all(
-      targets.map((userId) =>
+      targets.map((userId: string) =>
         publish(userChannel(userId), "notification:new", {
           actorId: input.actorId,
         }),

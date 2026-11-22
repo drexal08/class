@@ -95,9 +95,31 @@ export async function listSubmissionsForGrading(
     }),
   ]);
 
-  const byStudent = new Map(submissions.map((s) => [s.studentId, s]));
+  const byStudent = new Map<
+    string,
+    {
+      id: string;
+      studentId: string;
+      status: import("@/generated/prisma/client").$Enums.SubmissionState;
+      grade: number | null;
+      feedback: string | null;
+      content: string | null;
+      submittedAt: Date | null;
+      gradedAt: Date | null;
+      returnedAt: Date | null;
+      attachments: Array<{ id: string; name: string; url: string; mimeType: string | null; size: number; uploadedById: string }>;
+      rubricScores: Array<{ criterionId: string; points: number }>;
+      comments: Array<{
+        id: string;
+        content: string;
+        createdAt: Date;
+        authorId: string;
+        author: { id: string; displayName: string | null; email: string; avatarUrl: string | null };
+      }>;
+    }
+  >(submissions.map((s: { studentId: string }) => [s.studentId, s]));
 
-  const rows = roster.map(({ user }) => {
+  const rows = roster.map(({ user }: { user: { id: string; displayName: string | null; email: string; avatarUrl: string | null } }) => {
     const submission = byStudent.get(user.id) ?? null;
     return {
       student: user,
@@ -110,10 +132,10 @@ export async function listSubmissionsForGrading(
     assignment,
     rows,
     counts: {
-      turnedIn: rows.filter((r) =>
+      turnedIn: rows.filter((r: { status: string }) =>
         ["SUBMITTED", "LATE", "GRADED", "RETURNED"].includes(r.status),
       ).length,
-      graded: rows.filter((r) => ["GRADED", "RETURNED"].includes(r.status)).length,
+      graded: rows.filter((r: { status: string }) => ["GRADED", "RETURNED"].includes(r.status)).length,
       total: rows.length,
     },
   };
@@ -126,7 +148,11 @@ export async function listSubmissionsForGrading(
  * submission row in the database with no filter at all, shipping every grade in
  * the system to any teacher who opened this page.
  */
-export async function getGradebook(courseId: string) {
+export async function getGradebook(courseId: string): Promise<{
+  students: Array<{ id: string; displayName: string | null; email: string; avatarUrl: string | null }>;
+  assignments: Array<{ id: string; title: string; maxPoints: number; dueDate: Date | null }>;
+  cells: Array<{ assignmentId: string; studentId: string; grade: number | null; state: import("@/generated/prisma/client").$Enums.SubmissionState }>;
+}> {
   await requireCourseTeacher(courseId);
 
   const [students, assignments, submissions] = await Promise.all([
@@ -152,9 +178,9 @@ export async function getGradebook(courseId: string) {
   ]);
 
   return {
-    students: students.map((entry) => entry.user),
+    students: students.map((entry: { user: { id: string; displayName: string | null; email: string; avatarUrl: string | null } }) => entry.user),
     assignments,
-    cells: submissions.map((submission) => ({
+    cells: submissions.map((submission: { assignmentId: string; studentId: string; grade: number | null; status: string }) => ({
       assignmentId: submission.assignmentId,
       studentId: submission.studentId,
       grade: submission.grade,
@@ -164,7 +190,24 @@ export async function getGradebook(courseId: string) {
 }
 
 /** A student's own grades across a course. */
-export async function getStudentGrades(courseId: string) {
+export async function getStudentGrades(
+  courseId: string,
+): Promise<
+  Array<{
+    id: string;
+    title: string;
+    maxPoints: number;
+    dueDate: Date | null;
+    submission:
+      | {
+          id: string;
+          status: import("@/generated/prisma/client").$Enums.SubmissionState;
+          grade: number | null;
+          submittedAt: Date | null;
+        }
+      | null;
+  }>
+> {
   const context = await requireCourseAccess(courseId);
 
   const assignments = await prisma.assignment.findMany({
@@ -182,7 +225,16 @@ export async function getStudentGrades(courseId: string) {
     },
   });
 
-  return assignments.map(({ submissions, ...assignment }) => {
+  return assignments.map(({
+    submissions,
+    ...assignment
+  }: {
+    submissions: Array<{ id: string; status: import("@/generated/prisma/client").$Enums.SubmissionState; grade: number | null; submittedAt: Date | null }>;
+    id: string;
+    title: string;
+    maxPoints: number;
+    dueDate: Date | null;
+  }) => {
     const submission = submissions[0] ?? null;
     return {
       ...assignment,

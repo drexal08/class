@@ -42,24 +42,35 @@ export async function getStudentTodo() {
   });
 
   const now = Date.now();
-  const items = assignments.map(({ submissions, ...assignment }) => ({
+  const items = assignments.map(({
+    submissions,
+    ...assignment
+  }: {
+    submissions: Array<{ status: string; grade: number | null }>;
+    id: string;
+    title: string;
+    dueDate: Date | null;
+    maxPoints: number;
+    type: import("@/generated/prisma/client").$Enums.AssignmentType;
+    course: { id: string; name: string; accent: string };
+  }) => ({
     ...assignment,
     submission: submissions[0] ?? null,
   }));
 
   const outstanding = items.filter(
-    (item) => !item.submission || item.submission.status === "ASSIGNED",
+    (item: { submission: { status: string } | null }) => !item.submission || item.submission.status === "ASSIGNED",
   );
 
   return {
     assigned: outstanding.filter(
-      (item) => !item.dueDate || new Date(item.dueDate).getTime() >= now,
+      (item: { dueDate: Date | null }) => !item.dueDate || new Date(item.dueDate).getTime() >= now,
     ),
     missing: outstanding.filter(
-      (item) => item.dueDate && new Date(item.dueDate).getTime() < now,
+      (item: { dueDate: Date | null }) => item.dueDate && new Date(item.dueDate).getTime() < now,
     ),
     done: items.filter(
-      (item) => item.submission && item.submission.status !== "ASSIGNED",
+      (item: { submission: { status: string } | null }) => item.submission && item.submission.status !== "ASSIGNED",
     ),
   };
 }
@@ -91,11 +102,22 @@ export async function getTeacherTodo() {
     },
   });
 
-  const items = assignments.map(({ submissions, ...assignment }) => {
-    const turnedIn = submissions.filter((s) =>
+  const items = assignments.map(({
+    submissions,
+    ...assignment
+  }: {
+    submissions: Array<{ status: string }>;
+    id: string;
+    title: string;
+    dueDate: Date | null;
+    maxPoints: number;
+    type: import("@/generated/prisma/client").$Enums.AssignmentType;
+    course: { id: string; name: string; accent: string };
+  }) => {
+    const turnedIn = submissions.filter((s: { status: string }) =>
       ["SUBMITTED", "LATE"].includes(s.status),
     ).length;
-    const graded = submissions.filter((s) =>
+    const graded = submissions.filter((s: { status: string }) =>
       ["GRADED", "RETURNED"].includes(s.status),
     ).length;
 
@@ -103,13 +125,27 @@ export async function getTeacherTodo() {
   });
 
   return {
-    toReview: items.filter((item) => item.turnedIn > 0),
-    graded: items.filter((item) => item.turnedIn === 0 && item.graded > 0),
+    toReview: items.filter((item: { turnedIn: number; graded: number }) => item.turnedIn > 0),
+    graded: items.filter((item: { turnedIn: number; graded: number }) => item.turnedIn === 0 && item.graded > 0),
   };
 }
 
 /** Every dated item across a user's active classes, for the calendar. */
-export async function getCalendarItems() {
+export async function getCalendarItems(): Promise<
+  Array<{
+    id: string;
+    title: string;
+    dueDate: Date | null;
+    type: import("@/generated/prisma/client").$Enums.AssignmentType;
+    maxPoints: number;
+    course: {
+      id: string;
+      name: string;
+      accent: string;
+    };
+    submissions: Array<{ status: import("@/generated/prisma/client").$Enums.SubmissionState }>;
+  }>
+> {
   const user = await getCurrentUser();
   if (!user) return [];
 

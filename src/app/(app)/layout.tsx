@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/shell/app-header";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getPendingClaim } from "@/lib/auth/claim";
 
 /**
  * Everything in this group is private: student work, grades and class
@@ -22,8 +23,9 @@ export default async function AppLayout({
   // signed-out visitor is sent to `/login`. There is no middleware in front of
   // it — Next 16 proxies are Node-only and the Workers adapter cannot build
   // them, so the check has to live in the tree rather than beside it.
-  const user = await getCurrentUser();
+  const user = await getCurrentUser({ allowUnclaimed: true });
   if (!user) redirect("/login");
+  if (await getPendingClaim(user.id)) redirect("/welcome");
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

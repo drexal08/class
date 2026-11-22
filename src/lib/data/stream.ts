@@ -34,7 +34,26 @@ export type StreamAnnouncement = Awaited<
  * the client — the previous approach issued one request per announcement and
  * left every thread showing "Loading…" on first paint.
  */
-export async function listAnnouncements(courseId: string) {
+export async function listAnnouncements(
+  courseId: string,
+): Promise<
+  Array<{
+    id: string;
+    content: string;
+    pinned: boolean;
+    createdAt: Date;
+    authorId: string;
+    author: { id: string; displayName: string | null; email: string; avatarUrl: string | null };
+    attachments: Array<{ id: string; name: string; url: string; mimeType: string | null; size: number; uploadedById: string }>;
+    comments: Array<{
+      id: string;
+      content: string;
+      createdAt: Date;
+      authorId: string;
+      author: { id: string; displayName: string | null; email: string; avatarUrl: string | null };
+    }>;
+  }>
+> {
   await requireCourseAccess(courseId);
 
   return prisma.announcement.findMany({

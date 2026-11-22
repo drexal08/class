@@ -64,13 +64,13 @@ export async function saveAttendanceAction(
       where: { courseId, role: "STUDENT" },
       select: { userId: true },
     });
-    const enrolled = new Set(enrollments.map((entry) => entry.userId));
-    const outsider = records.find((record) => !enrolled.has(record.studentId));
+    const enrolled = new Set(enrollments.map((entry: { userId: string }) => entry.userId));
+    const outsider = records.find((record: { studentId: string }) => !enrolled.has(record.studentId));
     if (outsider) {
       return { error: "One of those students is not enrolled in this class" };
     }
 
-    if (new Set(records.map((record) => record.studentId)).size !== records.length) {
+    if (new Set(records.map((record: { studentId: string }) => record.studentId)).size !== records.length) {
       return { error: "A student appears twice on this register" };
     }
 
@@ -81,7 +81,7 @@ export async function saveAttendanceAction(
       select: { id: true },
     });
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: import("@/generated/prisma/client").Prisma.TransactionClient) => {
       const sessionId = existing
         ? (
             await tx.attendanceSession.update({
@@ -201,7 +201,7 @@ export async function createAbsenceRequestAction(
       body: reason,
       linkPath: `/course/${courseId}/attendance`,
       actorId: context.user.id,
-      recipientIds: teachers.map((teacher) => teacher.userId),
+      recipientIds: teachers.map((teacher: { userId: string }) => teacher.userId),
     });
 
     revalidatePath("/attendance");

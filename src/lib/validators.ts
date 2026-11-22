@@ -132,12 +132,35 @@ export const commentSchema = z
 // Classwork
 // ---------------------------------------------------------------------------
 
+export const assignmentModeSchema = z.enum([
+  "ANNOUNCEMENT",
+  "SHARED_WORK",
+  "SINGLE",
+]);
+
 export const assignmentTypeSchema = z.enum([
   "ASSIGNMENT",
   "QUIZ",
   "QUESTION",
   "MATERIAL",
 ]);
+
+export const createAssignmentGroupSchema = z.object({
+  schoolId: id,
+  title: z.string().trim().min(2, "Title is required").max(300),
+  subject: optionalText(120),
+  mode: assignmentModeSchema.default("SINGLE"),
+  targetCohortIds: z.array(id).default([]),
+  targetCourseIds: z.array(id).default([]),
+  description: optionalText(10_000),
+  type: assignmentTypeSchema.default("ASSIGNMENT"),
+  maxPoints: z.coerce.number().int().min(0).max(10_000).default(100),
+  dueDate: z.string().trim().optional().transform((value) => value ? new Date(value) : undefined).refine((value) => !value || !Number.isNaN(value.getTime()), { message: "Enter a valid due date" }),
+  topicId: optionalId,
+  published: z.coerce.boolean().default(true),
+  acceptingSubmissions: z.boolean().default(true),
+  allowLateSubmissions: z.boolean().default(true),
+});
 
 export const createAssignmentSchema = z.object({
   courseId: id,
@@ -164,11 +187,11 @@ export const createAssignmentSchema = z.object({
     }),
   topicId: optionalId,
   published: z.coerce.boolean().default(true),
-  // Parsed by the caller (see `updateAssignmentAction`) because a form's
-  // unchecked checkbox is absent rather than "false".
-  acceptingSubmissions: z.boolean().default(true),
-  allowLateSubmissions: z.boolean().default(true),
-});
+    // Parsed by the caller (see `updateAssignmentAction`) because a form's
+    // unchecked checkbox is absent rather than "false".
+    acceptingSubmissions: z.boolean().default(true),
+    allowLateSubmissions: z.boolean().default(true),
+  });
 
 export const createTopicSchema = z.object({
   courseId: id,

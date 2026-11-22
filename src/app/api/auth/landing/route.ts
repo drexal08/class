@@ -5,6 +5,7 @@ import {
   lookupSession,
   SESSION_COOKIE,
 } from "@/lib/auth/session";
+import { getPendingClaim } from "@/lib/auth/claim";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,12 @@ export async function GET(request: NextRequest) {
   const session = await lookupSession();
 
   if (session.status === "signed-in") {
-    const response = NextResponse.redirect(new URL("/dashboard", request.url));
+    const target = session.user.platformRole === "SUPERUSER"
+      ? "/platform"
+      : await getPendingClaim(session.user.id)
+        ? "/welcome"
+        : "/dashboard";
+    const response = NextResponse.redirect(new URL(target, request.url));
     response.cookies.delete(CHECKED_COOKIE);
     return response;
   }

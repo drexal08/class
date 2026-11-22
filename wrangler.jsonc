@@ -9,12 +9,20 @@
   "account_id": "3e7aa377fa5d97b06247985e3b08ad21",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-11-18",
-  "compatibility_flags": [
-    // Prisma, pg, firebase-admin and the AWS SDK use Node built-ins.
-    "nodejs_compat",
-    // Keep outbound fetch from resolving to the Worker itself.
-    "global_fetch_strictly_public",
-  ],
+    "compatibility_flags": [
+      // Prisma, pg, firebase-admin and the AWS SDK use Node built-ins.
+      "nodejs_compat",
+      // Keep outbound fetch from resolving to the Worker itself.
+      "global_fetch_strictly_public",
+    ],
+    // Prisma workerd client emits a static .wasm import; this rule bundles it.
+      "rules": [
+        {
+          "type": "CompiledWasm",
+          "globs": ["src/generated/prisma-workerd/**/*.wasm"],
+          "fallthrough": true
+        }
+      ],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",

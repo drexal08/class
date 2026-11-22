@@ -12,6 +12,7 @@ import {
   summariseAttendance,
   toDateKey,
   type AttendanceStatusValue,
+  type AttendanceCounts,
 } from "@/lib/school/attendance";
 import {
   computeClassAverages,
@@ -42,12 +43,15 @@ export function schoolTimeZone(): string {
 }
 
 function toNumber(
-  value: { toNumber(): number } | number | string | null | undefined,
+  value: unknown,
 ): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number") return value;
   if (typeof value === "string") return Number(value);
-  return value.toNumber();
+  if (typeof value === "object" && value !== null && "toNumber" in value) {
+    return (value as { toNumber(): number }).toNumber();
+  }
+  return null;
 }
 
 const studentSelect = {
@@ -114,7 +118,25 @@ export type GradebookScore = {
   score: number | null;
 };
 
-export async function getCourseGradebook(courseId: string, termId?: string) {
+export async function getCourseGradebook(
+  courseId: string,
+  termId?: string,
+): Promise<{
+  terms: Array<{ id: string; academicYear: string; name: string; isActive: boolean }>;
+    term: { id: string; academicYear: string; name: string; isActive: boolean } | null;
+  categories: Array<{ id: string; name: string; weight: number }>;
+  items: Array<{
+    id: string;
+    title: string;
+    categoryId: string;
+    maximum: number;
+    assessedOn: Date | null;
+    assignmentId: string | null;
+  }>;
+  students: Array<{ id: string; displayName: string | null; email: string; avatarUrl: string | null }>;
+  scores: Array<{ gradeItemId: string; studentId: string; score: number | null }>;
+  results: Map<string, import("@/lib/school/grading").TermResult>;
+}> {
   await requireCourseTeacher(courseId);
 
   const [terms, roster] = await Promise.all([
@@ -127,7 +149,7 @@ export async function getCourseGradebook(courseId: string, termId?: string) {
   ]);
 
   const term = pickTerm(terms, termId);
-  const students = roster.map((entry) => entry.user);
+  const students = roster.map((entry: { user: typeof studentSelect }) => entry.user);
 
   if (!term) {
     return {
@@ -162,7 +184,14 @@ export async function getCourseGradebook(courseId: string, termId?: string) {
     }),
   ]);
 
-  const gradeItems: GradebookItem[] = items.map((item) => ({
+  const gradeItems: GradebookItem[] = items.map((item: {
+    id: string;
+    title: string;
+    categoryId: string;
+    maximum: unknown;
+    assessedOn: Date | null;
+    assignmentId: string | null;
+  }) => ({
     id: item.id,
     title: item.title,
     categoryId: item.categoryId,
@@ -171,15 +200,18 @@ export async function getCourseGradebook(courseId: string, termId?: string) {
     assignmentId: item.assignmentId,
   }));
 
-  const scores: GradebookScore[] = items.flatMap((item) =>
-    item.scores.map((score) => ({
+  const scores: GradebookScore[] = items.flatMap((item: {
+    id: string;
+    scores: Array<{ studentId: string; score: unknown }>;
+  }) =>
+    item.scores.map((score: { studentId: string; score: unknown }) => ({
       gradeItemId: item.id,
       studentId: score.studentId,
       score: toNumber(score.score),
     })),
   );
 
-  const weights: CategoryWeight[] = categories.map((category) => ({
+  const weights: CategoryWeight[] = categories.map((category: { id: string; weight: number }) => ({
     id: category.id,
     weight: category.weight,
   }));
@@ -193,7 +225,7 @@ export async function getCourseGradebook(courseId: string, termId?: string) {
     terms,
     term,
     // Pages need the names; the grading engine only needs id + weight.
-    categories: categories.map((category) => ({
+    categories: categories.map((category: { id: string; name: string; weight: number }) => ({
       id: category.id,
       name: category.name,
       weight: category.weight,
@@ -202,7 +234,7 @@ export async function getCourseGradebook(courseId: string, termId?: string) {
     students,
     scores,
     results: computeClassAverages(
-      students.map((student) => student.id),
+      students.map((student: { id: string }) => student.id),
       entries,
       weights,
     ),
@@ -267,22 +299,33 @@ export async function getStudentCourseMarks(
   const term = pickTerm(terms, termId);
   if (!term) return { terms, term: null, rows: [], result: null };
 
-  const termItems = items.filter((item) => item.termId === term.id);
+  const termItems = items.filter((item: { termId: string }) => item.termId === term.id);
   const termWeights = categories
-    .filter((category) => category.termId === term.id)
-    .map((category) => ({ id: category.id, weight: category.weight }));
+    .filter((category: { termId: string }) => category.termId === term.id)
+    .map((category: { id: string; weight: number }) => ({ id: category.id, weight: category.weight }));
 
   const categoryNames = new Map(
-    categories.map((category) => [category.id, category.name]),
+    categories.map((category: { id: string; name: string }) => [category.id, category.name]),
   );
 
-  const entries: GradeEntry[] = termItems.map((item) => ({
+  const entries: GradeEntry[] = termItems.map((item: {
+    categoryId: string;
+    maximum: unknown;
+    scores: Array<{ score: unknown }>;
+  }) => ({
     categoryId: item.categoryId,
     maximum: toNumber(item.maximum) ?? 0,
     score: toNumber(item.scores[0]?.score ?? null),
   }));
 
-  const rows = termItems.map((item) => {
+  const rows = termItems.map((item: {
+    id: string;
+    title: string;
+    categoryId: string;
+    maximum: unknown;
+    scores: Array<{ score: unknown }>;
+    assessedOn: Date | null;
+  }) => {
     const maximum = toNumber(item.maximum) ?? 0;
     const score = toNumber(item.scores[0]?.score ?? null);
     return {
@@ -364,11 +407,27 @@ export async function getAttendanceRegister(
     }),
   ]);
 
-  const byStudent = new Map(
-    (session?.records ?? []).map((record) => [record.studentId, record]),
+  const byStudent = new Map<
+    string,
+    { studentId: string; status: string; note: string | null; minutesLate: number | null }
+  >(
+    (session?.records ?? []).map((record: {
+      studentId: string;
+      status: string;
+      note: string | null;
+      minutesLate: number | null;
+    }) => [
+      record.studentId,
+      {
+        studentId: record.studentId,
+        status: record.status,
+        note: record.note,
+        minutesLate: record.minutesLate,
+      },
+    ]),
   );
 
-  const rows: RegisterRow[] = roster.map(({ user }) => {
+  const rows: RegisterRow[] = roster.map(({ user }: { user: { id: string; displayName: string | null; email: string; avatarUrl: string | null } }): RegisterRow => {
     const record = byStudent.get(user.id);
     return {
       student: user,
@@ -412,7 +471,27 @@ export async function getCourseAttendanceByStudent(
   return byStudent;
 }
 
-export async function getStudentAttendanceMonth(year: number, month: number) {
+export async function getStudentAttendanceMonth(
+  year: number,
+  month: number,
+): Promise<{
+  year: number;
+  month: number;
+  courses: Array<{ id: string; name: string; accent: string }>;
+  records: Array<{
+    status: import("@/generated/prisma/client").$Enums.AttendanceStatus;
+    minutesLate: number | null;
+    note: string | null;
+    session: {
+      date: Date;
+      period: string | null;
+      course: { id: string; name: string };
+    };
+  }>;
+  byDay: Map<string, import("@/lib/school/attendance").AttendanceStatusValue[]>;
+  counts: AttendanceCounts;
+  rate: number | null;
+}> {
   const user = await requireUser();
 
   const enrollments = await prisma.enrollment.findMany({
@@ -420,7 +499,7 @@ export async function getStudentAttendanceMonth(year: number, month: number) {
     select: { course: { select: { id: true, name: true, accent: true } } },
   });
 
-  const courseIds = enrollments.map((entry) => entry.course.id);
+  const courseIds = enrollments.map((entry: { course: { id: string } }) => entry.course.id);
   const from = new Date(Date.UTC(year, month - 1, 1));
   const to = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
@@ -447,16 +526,16 @@ export async function getStudentAttendanceMonth(year: number, month: number) {
     : [];
 
   const statuses = records.map(
-    (record) => record.status as AttendanceStatusValue,
+    (record: { status: string }) => record.status as AttendanceStatusValue,
   );
 
   return {
     year,
     month,
-    courses: enrollments.map((entry) => entry.course),
+    courses: enrollments.map((entry: { course: { id: string; name: string; accent: string } }) => entry.course),
     records,
     byDay: bucketStatusesByDay(
-      records.map((record) => ({
+      records.map((record: { session: { date: Date }; status: string }) => ({
         date: record.session.date,
         status: record.status as AttendanceStatusValue,
       })),
@@ -530,7 +609,18 @@ export async function getCourseSchedule(courseId: string) {
 }
 
 /** Every slot across the caller's classes, for the calendar and dashboard. */
-export async function getUserSchedule() {
+export async function getUserSchedule(): Promise<{
+  courses: Array<{ id: string; name: string; section: string | null; accent: string }>;
+  slots: Array<{
+    id: string;
+    courseId: string;
+    weekday: number;
+    startsAt: string;
+    endsAt: string;
+    room: string | null;
+    course: { name: string; accent: string };
+  }>;
+}> {
   const user = await requireUser();
 
   const enrollments = await prisma.enrollment.findMany({
@@ -540,8 +630,8 @@ export async function getUserSchedule() {
     },
   });
 
-  const courses = enrollments.map((entry) => entry.course);
-  const courseIds = courses.map((course) => course.id);
+  const courses = enrollments.map((entry: { course: { id: string; name: string; section: string | null; accent: string } }) => entry.course);
+  const courseIds = courses.map((course: { id: string }) => course.id);
 
   if (courseIds.length === 0) return { courses, slots: [] };
 
@@ -626,14 +716,14 @@ export async function getCourseReports(courseId: string, termId?: string) {
     }),
   ]);
 
-  const weights: CategoryWeight[] = categories.map((category) => ({
+  const weights: CategoryWeight[] = categories.map((category: { id: string; weight: number }) => ({
     id: category.id,
     weight: category.weight,
   }));
 
   const entries: Array<GradeEntry & { studentId: string }> = items.flatMap(
-    (item) =>
-      item.scores.map((score) => ({
+    (item: { categoryId: string; maximum: unknown; scores: Array<{ studentId: string; score: unknown }> }) =>
+      item.scores.map((score: { studentId: string; score: unknown }) => ({
         studentId: score.studentId,
         categoryId: item.categoryId,
         maximum: toNumber(item.maximum) ?? 0,
@@ -642,16 +732,16 @@ export async function getCourseReports(courseId: string, termId?: string) {
   );
 
   const results = computeClassAverages(
-    roster.map((entry) => entry.user.id),
+    roster.map((entry: { user: { id: string } }) => entry.user.id),
     entries,
     weights,
   );
 
   const commentByStudent = new Map(
-    comments.map((comment) => [comment.studentId, comment.body]),
+    comments.map((comment: { studentId: string; body: string }) => [comment.studentId, comment.body]),
   );
 
-  const rows: CourseReportRow[] = roster.map(({ user }) => {
+  const rows: CourseReportRow[] = roster.map(({ user }: { user: { id: string } }) => {
     const statuses = attendance.get(user.id) ?? [];
     return {
       student: user,
@@ -672,7 +762,7 @@ export async function getCourseReports(courseId: string, termId?: string) {
     terms,
     term,
     rows,
-    classAverage: meanOfAverages(rows.map((row) => row.result.average)),
+    classAverage: meanOfAverages(rows.map((row: { result: { average: number | null } }) => row.result.average)),
   };
 }
 
@@ -717,8 +807,8 @@ export async function getStudentReportCard(termId: string) {
     },
   });
 
-  const courses = enrollments.map((entry) => entry.course);
-  const courseIds = courses.map((course) => course.id);
+  const courses = enrollments.map((entry: { course: { id: string; name: string; accent: string } }) => entry.course);
+  const courseIds = courses.map((course: { id: string }) => course.id);
   if (courseIds.length === 0) {
     return { term, student: user, courses: [] as ReportCardCourse[] };
   }
@@ -762,10 +852,10 @@ export async function getStudentReportCard(termId: string) {
   ]);
 
   const categoryName = new Map(
-    categories.map((category) => [category.id, category.name]),
+    categories.map((category: { id: string; name: string }) => [category.id, category.name]),
   );
   const commentByCourse = new Map(
-    comments.map((comment) => [comment.courseId, comment.body]),
+    comments.map((comment: { courseId: string; body: string }) => [comment.courseId, comment.body]),
   );
 
   const attendanceByCourse = new Map<string, AttendanceStatusValue[]>();
@@ -778,13 +868,17 @@ export async function getStudentReportCard(termId: string) {
     }
   }
 
-  const coursesReport: ReportCardCourse[] = courses.map((course) => {
-    const courseItems = items.filter((item) => item.courseId === course.id);
+  const coursesReport: ReportCardCourse[] = courses.map((course: { id: string; name: string; accent: string }) => {
+    const courseItems = items.filter((item: { courseId: string }) => item.courseId === course.id);
     const courseCategories = categories.filter(
-      (category) => category.courseId === course.id,
+      (category: { courseId: string }) => category.courseId === course.id,
     );
 
-    const entries: GradeEntry[] = courseItems.map((item) => ({
+    const entries: GradeEntry[] = courseItems.map((item: {
+      categoryId: string;
+      maximum: unknown;
+      scores: Array<{ score: unknown }>;
+    }) => ({
       categoryId: item.categoryId,
       maximum: toNumber(item.maximum) ?? 0,
       score: toNumber(item.scores[0]?.score ?? null),
@@ -798,7 +892,7 @@ export async function getStudentReportCard(termId: string) {
       accent: course.accent,
       result: computeTerm(
         entries,
-        courseCategories.map((category) => ({
+        courseCategories.map((category: { id: string; weight: number }) => ({
           id: category.id,
           weight: category.weight,
         })),
@@ -806,7 +900,14 @@ export async function getStudentReportCard(termId: string) {
       attendance: summariseAttendance(statuses),
       attendanceRate: attendanceRate(statuses),
       comment: commentByCourse.get(course.id) ?? null,
-      rows: courseItems.map((item) => ({
+      rows: courseItems.map((item: {
+        id: string;
+        title: string;
+        categoryId: string;
+        maximum: unknown;
+        scores: Array<{ score: unknown }>;
+        assessedOn: Date;
+      }) => ({
         id: item.id,
         title: item.title,
         categoryName: categoryName.get(item.categoryId) ?? "Uncategorised",
@@ -832,7 +933,7 @@ export async function getStudentTermOverview(termId?: string) {
     where: { userId: user.id, course: { archived: false } },
     select: { course: { select: { id: true } } },
   });
-  const courseIds = enrollments.map((entry) => entry.course.id);
+  const courseIds = enrollments.map((entry: { course: { id: string } }) => entry.course.id);
 
   if (courseIds.length === 0) {
     return { term, average: null, attendanceRate: null };
@@ -867,16 +968,20 @@ export async function getStudentTermOverview(termId?: string) {
   const averages: Array<number | null> = [];
   for (const courseId of courseIds) {
     const courseCategories = categories.filter(
-      (category) => category.courseId === courseId,
+      (category: { courseId: string }) => category.courseId === courseId,
     );
-    const courseItems = items.filter((item) => item.courseId === courseId);
+    const courseItems = items.filter((item: { courseId: string }) => item.courseId === courseId);
     const result = computeTerm(
-      courseItems.map((item) => ({
+      courseItems.map((item: {
+        categoryId: string;
+        maximum: unknown;
+        scores: Array<{ score: unknown }>;
+      }) => ({
         categoryId: item.categoryId,
         maximum: toNumber(item.maximum) ?? 0,
         score: toNumber(item.scores[0]?.score ?? null),
       })),
-      courseCategories.map((category) => ({
+      courseCategories.map((category: { id: string; weight: number }) => ({
         id: category.id,
         weight: category.weight,
       })),
@@ -888,7 +993,7 @@ export async function getStudentTermOverview(termId?: string) {
     term,
     average: meanOfAverages(averages),
     attendanceRate: attendanceRate(
-      records.map((record) => record.status as AttendanceStatusValue),
+      records.map((record: { status: string }) => record.status as AttendanceStatusValue),
     ),
   };
 }
