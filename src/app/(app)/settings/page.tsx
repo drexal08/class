@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/settings/profile-form";
+import { ChangePasswordForm } from "@/components/settings/change-password-form";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -59,6 +60,8 @@ export default async function SettingsPage() {
           </p>
           <ProfileForm displayName={user.displayName ?? ""} />
         </Card>
+
+        <ChangePasswordForm />
 
         {user.isAdmin && (
           <Card className="p-6">
