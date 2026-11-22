@@ -322,14 +322,16 @@ model Cohort {
   ownerId          String?
   createdById      String?
   archivedAt       DateTime?
+  homeroomCourseId String?        @unique
   createdAt        DateTime       @default(now())
 
-  school      School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  combination Combination   @relation(fields: [combinationId], references: [id], onDelete: Restrict)
-  members     CohortMember[]
-  courses     Course[]
-  imports     CohortImport[]
-  joinCodes   JoinCode[]
+  school         School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  combination    Combination   @relation(fields: [combinationId], references: [id], onDelete: Restrict)
+  members        CohortMember[]
+  courses        Course[]
+  imports        CohortImport[]
+  joinCodes      JoinCode[]
+  homeroomCourse Course?        @relation("CohortHomeroom", fields: [homeroomCourseId], references: [id], onDelete: SetNull)
 
   @@unique([schoolId, label, academicYear])
   @@index([schoolId, academicYear])
@@ -599,6 +601,7 @@ model Course {
 
   school School? @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   cohort Cohort? @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+  homeroomForCohort Cohort? @relation("CohortHomeroom")
 
   joinCodes     JoinCode[]
   enrollments   Enrollment[]
