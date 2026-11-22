@@ -62,6 +62,18 @@ export async function POST(request: Request) {
   }
 
   if (action === "dispute") {
+    // Check if there's already an unresolved dispute for this member
+    const existingDispute = await prisma.claimDispute.findFirst({
+      where: { memberId, resolvedAt: null },
+      select: { id: true },
+    });
+    if (existingDispute) {
+      return NextResponse.json(
+        { error: "A dispute is already open for this account. Please contact your teacher." },
+        { status: 409 },
+      );
+    }
+
     await prisma.$transaction([
       prisma.claimDispute.create({
         data: {

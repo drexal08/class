@@ -4,7 +4,6 @@ import { z } from "zod";
 import { getAdminAuth } from "@/lib/firebase/admin";
 import { prisma } from "@/lib/prisma";
 import { studentAuthEmail } from "@/lib/sdms/import-normalization";
-import { getStorageConfig } from "@/lib/env";
 
 const loginSchema = z.object({
   code: z.string().min(6).max(20),
@@ -28,13 +27,34 @@ function getClientIp(request: Request): string {
   return request.headers.get("x-real-ip") ?? "unknown";
 }
 
-function checkRateLimit(codeHash: string, ipHash: string): { allowed: boolean; retryAfter?: number } {
+async function checkRateLimit(codeHash: string, ipHash: string): Promise<{ allowed: boolean; retryAfter?: number }> {
   const now = new Date();
   const windowStart = new Date(now.getTime() - 15 * 60 * 1000);
 
-  // This would need a proper rate-limit table or Redis in production.
-  // For now, implement a basic check using LoginAttempt.
-  // We'll rely on the database unique index on recent attempts.
+  // Count failed attempts in the last 15 minutes
+  const codeFailures = prisma.loginAttempt.count({
+    where: { codeHash, success: false, createdAt: { gte: windowStart } },
+  });
+  const ipFailures = prisma.loginAttempt.count({
+    where: { ipHash, success: false, createdAt: { gte: windowStart } },
+  });
+
+  const [codeCount, ipCount] = await Promise.all([codeFailures, ipFailures]);
+
+  // 5 failures/15 min per code, 20/15 min per IP with exponential lockout
+  const maxCodeFailures = 5;
+  const maxIpFailures = 20;
+
+  if (codeCount >= maxCodeFailures) {
+    // Exponential backoff: 15min * 2^(failures - maxFailures)
+    const lockoutMinutes = 15 * Math.pow(2, codeCount - maxCodeFailures + 1);
+    return { allowed: false, retryAfter: lockoutMinutes * 60 };
+  }
+  if (ipCount >= maxIpFailures) {
+    const lockoutMinutes = 15 * Math.pow(2, ipCount - maxIpFailures + 1);
+    return { allowed: false, retryAfter: lockoutMinutes * 60 };
+  }
+
   return { allowed: true };
 }
 
@@ -68,8 +88,15 @@ export async function POST(request: Request) {
   const ipHash = hashIp(ip);
   const codeHash = hashIp(normalizedCode);
 
-  // Verify rate limits (simplified - in production use a dedicated table)
-  // For now, we'll rely on Firebase's built-in rate limiting and the generic error.
+  // Check rate limits
+  const rateLimit = await checkRateLimit(codeHash, ipHash);
+  if (!rateLimit.allowed) {
+    const minutes = Math.ceil((rateLimit.retryAfter ?? 900) / 60);
+    return NextResponse.json(
+      { error: "Too many failed attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter ?? 900) } },
+    );
+  }
 
   const domain = process.env.NEXT_PUBLIC_STUDENT_EMAIL_DOMAIN;
   if (!domain) {
@@ -80,6 +107,21 @@ export async function POST(request: Request) {
   }
 
   const email = studentAuthEmail(normalizedCode, domain);
+
+  // Check for unresolved dispute on this code
+  const dispute = await prisma.claimDispute.findFirst({
+    where: {
+      code: normalizedCode,
+      resolvedAt: null,
+    },
+    select: { id: true },
+  });
+  if (dispute) {
+    return NextResponse.json(
+      { error: "This code has a pending dispute. Please contact your teacher." },
+      { status: 409 },
+    );
+  }
 
   try {
     const userRecord = await admin.getUserByEmail(email);
