@@ -50,6 +50,13 @@ enum AssignmentType {
   MATERIAL
 }
 
+/// Assignment group mode: SINGLE = single course, SHARED_WORK = shared across courses with grade items, ANNOUNCEMENT = no marks
+enum AssignmentMode {
+  SINGLE
+  SHARED_WORK
+  ANNOUNCEMENT
+}
+
 /// [+] Module C — who is allowed to post and comment on the stream.
 enum PostPolicy {
   STUDENTS_CAN_POST_AND_COMMENT
@@ -424,15 +431,24 @@ model ClaimDispute {
 }
 
 model AssignmentGroup {
-  id          String   @id @default(cuid())
-  schoolId    String
-  createdById String
-  title       String
-  subject     String?
-  createdAt   DateTime @default(now())
+  id                  String              @id @default(cuid())
+  schoolId            String
+  createdById         String
+  title               String
+  subject             String?
+  mode                AssignmentMode      @default(SINGLE)
+  description         String?
+  type                AssignmentType      @default(ASSIGNMENT)
+  maxPoints           Int                 @default(100)
+  dueDate             DateTime?
+  published           Boolean             @default(true)
+  acceptingSubmissions Boolean            @default(true)
+  allowLateSubmissions Boolean            @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  assignments Assignment[]
+  school              School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assignments         Assignment[]
 
   @@index([schoolId])
 }
