@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CohortImport } from "@/components/cohort/cohort-import";
+import { CombinationManager } from "@/components/school/combination-manager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +115,10 @@ export default async function CohortDetailPage({
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section>
+          <CombinationManager schoolId={cohort.schoolId} />
         </section>
 
         <section>
