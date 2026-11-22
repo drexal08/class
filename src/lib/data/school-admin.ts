@@ -157,7 +157,7 @@ export async function exportClaimStatusCsv(cohortId: string): Promise<string> {
   await requireSchoolAdmin(cohort.schoolId);
   const roster = await getCohortRoster(cohortId);
   const rows = roster?.members ?? [];
-  const lines = ["code,name,gender,claimed_at,last_sign_in,status"];
+  const lines = ["code,name,gender,claimed_at,last_sign_in,claim_status,membership_status"];
   for (const member of rows) {
     const claimState = member.disputes.length > 0
       ? "DISPUTED"
@@ -170,7 +170,8 @@ export async function exportClaimStatusCsv(cohortId: string): Promise<string> {
       csvCell(member.user.gender),
       csvCell(member.claimedAt?.toISOString()),
       csvCell(member.lastSignInAt?.toISOString()),
-      csvCell(`${claimState}/${member.status}`),
+      csvCell(claimState),
+      csvCell(member.status),
     ].join(","));
   }
   return `${lines.join("\r\n")}\r\n`;
