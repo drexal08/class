@@ -73,6 +73,7 @@ export const termSchema = z
     startsOn: dateOnly,
     endsOn: dateOnly,
     isActive: z.boolean().default(false),
+    schoolId: z.string().trim().min(1, "School is required").max(64),
   })
   .refine((value) => value.endsOn > value.startsOn, {
     message: "The term must end after it starts",

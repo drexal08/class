@@ -42,10 +42,33 @@ export async function createCourseAction(
       section: formData.get("section"),
       subject: formData.get("subject"),
       room: formData.get("room"),
+      schoolId: formData.get("schoolId"),
     });
     if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-    const course = await createCourseWithUniqueCode(user.id, parsed.data);
+    // Determine schoolId: if provided, verify membership; otherwise auto-select if user has exactly one school
+    const teacherSchools = await prisma.schoolMember.findMany({
+      where: { userId: user.id, status: "ACTIVE", school: { disabledAt: null } },
+      select: { schoolId: true },
+    });
+
+    let schoolId = parsed.data.schoolId;
+    if (!schoolId) {
+      if (teacherSchools.length === 1) {
+        schoolId = teacherSchools[0].schoolId;
+      } else if (teacherSchools.length > 1) {
+        return { error: "You belong to multiple schools. Please select a school for this class." };
+      }
+      // If teacherSchools.length === 0, schoolId remains undefined (legacy/global course)
+    } else {
+      // Verify the teacher is an active member of the selected school
+      const membership = teacherSchools.find((s: { schoolId: string }) => s.schoolId === schoolId);
+      if (!membership) {
+        return { error: "You are not an active member of that school" };
+      }
+    }
+
+    const course = await createCourseWithUniqueCode(user.id, { ...parsed.data, schoolId });
     createdId = course.id;
   });
 
@@ -63,7 +86,7 @@ export async function createCourseAction(
  */
 async function createCourseWithUniqueCode(
   teacherId: string,
-  data: { name: string; section?: string; subject?: string; room?: string },
+  data: { name: string; section?: string; subject?: string; room?: string; schoolId?: string },
 ) {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
@@ -107,21 +130,45 @@ export async function joinCourseAction(
     const parsed = joinCourseSchema.safeParse({ code: formData.get("code") });
     if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-    const course = await prisma.course.findUnique({
-      where: { code: parsed.data.code },
-      select: { id: true, archived: true, teacherId: true },
-    });
-    if (!course) return { error: "No class found with that code" };
-    if (course.archived) return { error: "That class has been archived" };
+    const normalizedCode = parsed.data.code;
+
+    // Resolve code type
+    let courseId: string | null = null;
+    let role: "TEACHER" | "STUDENT" = "STUDENT";
+
+    if (normalizedCode.startsWith("SCH-")) {
+      // School code - should be handled by join-school page, not here
+      return { error: "School codes are used to join a school staff team, not a class. Go to /join-school." };
+    } else if (normalizedCode.startsWith("CLS-")) {
+      // Cohort/course code
+      const course = await prisma.course.findUnique({
+        where: { code: normalizedCode },
+        select: { id: true, archived: true, teacherId: true },
+      });
+      if (!course) return { error: "No class found with that code" };
+      if (course.archived) return { error: "That class has been archived" };
+      courseId = course.id;
+      role = course.teacherId === user.id ? "TEACHER" : "STUDENT";
+    } else if (/^[A-Z0-9]{7}$/.test(normalizedCode)) {
+      // Legacy 7-character course code
+      const course = await prisma.course.findUnique({
+        where: { code: normalizedCode },
+        select: { id: true, archived: true, teacherId: true },
+      });
+      if (!course) return { error: "No class found with that code" };
+      if (course.archived) return { error: "That class has been archived" };
+      courseId = course.id;
+      role = course.teacherId === user.id ? "TEACHER" : "STUDENT";
+    } else {
+      return { error: "Invalid code format" };
+    }
 
     try {
       await prisma.enrollment.create({
         data: {
-          courseId: course.id,
+          courseId: courseId!,
           userId: user.id,
-          // A teacher joining someone else's class joins as a student; only the
-          // owner and explicitly promoted users teach.
-          role: course.teacherId === user.id ? "TEACHER" : "STUDENT",
+          role,
         },
       });
     } catch (error) {
@@ -131,7 +178,7 @@ export async function joinCourseAction(
       throw error;
     }
 
-    joinedId = course.id;
+    joinedId = courseId;
   });
 
   if (result.error) return result;
@@ -231,7 +278,11 @@ export async function removeMemberAction(
       return { error: "The class owner cannot be removed" };
     }
 
-    await prisma.enrollment.deleteMany({ where: { courseId, userId } });
+    // Mark as inactive instead of deleting to preserve history
+    await prisma.enrollment.updateMany({
+      where: { courseId, userId },
+      data: { active: false, leftAt: new Date() },
+    });
     revalidatePath(`/course/${courseId}/people`);
   });
 }

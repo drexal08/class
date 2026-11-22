@@ -71,6 +71,7 @@ export const createCourseSchema = z.object({
   section: optionalText(80),
   subject: optionalText(80),
   room: optionalText(60),
+  schoolId: optionalId,
 });
 
 export const updateCourseSchema = createCourseSchema.extend({
@@ -90,8 +91,8 @@ export const joinCourseSchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .length(7, "Class codes are 7 characters")
-    .regex(/^[A-Z0-9]+$/, "Class codes use letters and numbers only"),
+    .min(6, "Invalid code")
+    .max(20, "Invalid code"),
 });
 
 // ---------------------------------------------------------------------------

@@ -217,24 +217,58 @@ export async function getCourseByCode(code: string) {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const course = await prisma.course.findUnique({
-    where: { code: code.trim().toUpperCase() },
-    select: {
-      id: true,
-      name: true,
-      section: true,
-      subject: true,
-      accent: true,
-      archived: true,
-      school: { select: { disabledAt: true } },
-      teacher: { select: { displayName: true, email: true, avatarUrl: true } },
-      _count: { select: { enrollments: true } },
-      enrollments: {
-        where: { userId: user.id, active: true },
-        select: { id: true },
+  const normalizedCode = code.trim().toUpperCase();
+  let course: typeof prisma.course extends { findUnique: (args: any) => any } ? any : never;
+
+  // Handle different code types: SCH- (school), CLS- (cohort/course), legacy 7-char (course)
+  if (normalizedCode.startsWith("SCH-")) {
+    // School code - redirect to join-school page
+    return null;
+  } else if (normalizedCode.startsWith("CLS-")) {
+    // Cohort/course code - look up the course by code
+    course = await prisma.course.findUnique({
+      where: { code: normalizedCode },
+      select: {
+        id: true,
+        name: true,
+        section: true,
+        subject: true,
+        accent: true,
+        archived: true,
+        school: { select: { disabledAt: true } },
+        teacher: { select: { displayName: true, email: true, avatarUrl: true } },
+        _count: { select: { enrollments: true } },
+        enrollments: {
+          where: { userId: user.id, active: true },
+          select: { id: true },
+        },
       },
-    },
-  });
+    });
+  } else if (/^[A-Z0-9]{7}$/.test(normalizedCode)) {
+    // Legacy 7-character course code
+    course = await prisma.course.findUnique({
+      where: { code: normalizedCode },
+      select: {
+        id: true,
+        name: true,
+        section: true,
+        subject: true,
+        accent: true,
+        archived: true,
+        school: { select: { disabledAt: true } },
+        teacher: { select: { displayName: true, email: true, avatarUrl: true } },
+        _count: { select: { enrollments: true } },
+        enrollments: {
+          where: { userId: user.id, active: true },
+          select: { id: true },
+        },
+      },
+    });
+  } else {
+    // Unknown format
+    return null;
+  }
+
   if (!course || course.school?.disabledAt) return null;
 
   const { enrollments, ...rest } = course;
