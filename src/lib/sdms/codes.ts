@@ -18,3 +18,12 @@ export function generateJoinCode(kind: SchoolJoinCodeKind): string {
   }
   return `${prefix}${body}`;
 }
+
+export function generateCourseCode(kind: "HOMEROOM" | "SUBJECT"): string {
+  const prefix = kind === "HOMEROOM" ? "HR-" : "CL-";
+  let body = "";
+  for (let index = 0; index < BODY_LENGTH; index += 1) {
+    body += ALPHABET[randomInt(0, ALPHABET.length)];
+  }
+  return `${prefix}${body}`;
+}

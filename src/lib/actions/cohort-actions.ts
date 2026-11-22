@@ -6,7 +6,7 @@ import { z } from "zod";
 import { runAction } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { requireCohortManager, requireSchoolAdmin, requireSuperuser } from "@/lib/sdms/access";
-import { generateJoinCode } from "@/lib/sdms/codes";
+import { generateJoinCode, generateCourseCode } from "@/lib/sdms/codes";
 import type { ActionState } from "@/lib/types";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -424,12 +424,12 @@ export async function rotateJoinCodeAction(
         if (!courseId) throw new Error("courseId required for course code rotation");
         const course = await tx.course.findUnique({
           where: { id: courseId },
-          select: { cohortId: true, code: true },
+          select: { cohortId: true, code: true, kind: true },
         });
         if (!course || course.cohortId !== cohortId) {
           throw new Error("Course not found in this cohort");
         }
-        const newCode = generateJoinCode("COURSE");
+        const newCode = generateCourseCode(course.kind === "HOMEROOM" ? "HOMEROOM" : "SUBJECT");
         await tx.course.update({
           where: { id: courseId },
           data: { code: newCode },
