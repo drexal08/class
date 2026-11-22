@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Users, Building2, AlertTriangle, Database, Logs, Settings, Download, Upload, Eye, Activity } from "lucide-react";
+import { Search, Plus, Users, Building2, AlertTriangle, Database, Logs, Settings, Download, Upload, Eye, Activity, ChevronLeft, ChevronRight } from "lucide-react";
+import { GlobalSearch } from "@/components/platform/global-search";
 import {
   appointSchoolAdminAction,
   createSchoolAction,
@@ -34,8 +35,8 @@ export type PlatformSchoolView = {
 };
 
 export function PlatformConsole({ schools }: { schools: PlatformSchoolView[] }) {
-  const [activeTab, setActiveTab] = useState<"overview" | "schools" | "analytics" | "audit" | "migration" | "settings">("overview");
-  const handleTabChange = (value: "overview" | "schools" | "analytics" | "audit" | "migration" | "settings") => setActiveTab(value);
+  const [activeTab, setActiveTab] = useState<"overview" | "schools" | "analytics" | "audit" | "migration" | "search" | "settings">("overview");
+  const handleTabChange = (value: "overview" | "schools" | "analytics" | "audit" | "migration" | "search" | "settings") => setActiveTab(value);
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredSchools = schools.filter((s) =>
@@ -66,12 +67,13 @@ export function PlatformConsole({ schools }: { schools: PlatformSchoolView[] }) 
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange as (value: string) => void} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview"><Building2 className="mr-2 h-4 w-4" /> Overview</TabsTrigger>
           <TabsTrigger value="schools"><Building2 className="mr-2 h-4 w-4" /> Schools</TabsTrigger>
           <TabsTrigger value="analytics"><Activity className="mr-2 h-4 w-4" /> Analytics</TabsTrigger>
           <TabsTrigger value="audit"><Logs className="mr-2 h-4 w-4" /> Audit Log</TabsTrigger>
           <TabsTrigger value="migration"><Database className="mr-2 h-4 w-4" /> Migration</TabsTrigger>
+          <TabsTrigger value="search"><Search className="mr-2 h-4 w-4" /> Search</TabsTrigger>
           <TabsTrigger value="settings"><Settings className="mr-2 h-4 w-4" /> Settings</TabsTrigger>
         </TabsList>
 
@@ -174,6 +176,11 @@ export function PlatformConsole({ schools }: { schools: PlatformSchoolView[] }) 
               <PlatformSettings />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Search Tab */}
+        <TabsContent value="search">
+          <GlobalSearch />
         </TabsContent>
       </Tabs>
     </div>

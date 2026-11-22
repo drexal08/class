@@ -10,11 +10,11 @@ import {
   canPostOnStream,
   resolveCourseAccess,
 } from "@/lib/rules";
-import { requireSchoolAdmin as requireSchoolAdminImpl } from "@/lib/sdms/access";
+import { requireSchoolAdmin as requireSchoolAdminImpl, requireSuperuser } from "@/lib/sdms/access";
 import type { ActionState, SessionUser } from "@/lib/types";
 import type { PostPolicy, Role } from "@/generated/prisma/client";
 
-export { requireSchoolAdminImpl as requireSchoolAdmin };
+export { requireSchoolAdminImpl as requireSchoolAdmin, requireSuperuser };
 
 /**
  * Authorization failures carry a message safe to show a user. Anything else
