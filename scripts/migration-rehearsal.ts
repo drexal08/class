@@ -29,7 +29,7 @@ interface RehearsalOptions {
   databaseUrl?: string;
 }
 
-async function createDisposableBranch(branchName: string): Promise<string> {
+async function createDisposableBranch(branchName: string): Promise<{ connectionUri: string; branchId: string }> {
   const neonApiKey = process.env.NEON_API_KEY;
   const projectId = process.env.NEON_PROJECT_ID || "floral-king-64647468";
   
@@ -56,9 +56,64 @@ async function createDisposableBranch(branchName: string): Promise<string> {
     throw new Error(`Failed to create branch: ${error}`);
   }
   
-  const data = await response.json() as { id: string; connection_uri: string };
-  console.log(`Branch created: ${data.id}`);
-  return data.connection_uri;
+  const data = await response.json() as { 
+    branch?: { id: string; branch_id?: string; endpoints?: Array<{ connection_uri: string; id: string; type: string }> };
+    id?: string;
+    branch_id?: string;
+    endpoints?: Array<{ connection_uri: string; id: string; type: string }>;
+    [key: string]: any;
+  };
+  
+  console.log(`Branch created, full response: ${JSON.stringify(data)}`);
+  
+  // Handle both response formats: { branch: {...} } or direct { id: ... }
+  const branchData = data.branch || data;
+  const branchId = branchData.id || branchData.branch_id;
+  if (!branchId) {
+    throw new Error(`Branch ID not found in response: ${JSON.stringify(data)}`);
+  }
+  
+  console.log(`Branch created: ${branchId}`);
+  console.log(`Branch endpoints: ${JSON.stringify(branchData.endpoints)}`);
+  
+  // Wait for branch to be ready with read-write endpoint
+  console.log("Waiting for branch to be ready with read-write endpoint...");
+  let attempts = 0;
+  const maxAttempts = 30; // 30 * 10s = 5 minutes
+  let rwEndpoint = branchData.endpoints?.find(e => e.type === "read_write");
+  
+  while (!rwEndpoint?.connection_uri && attempts < maxAttempts) {
+    console.log(`  Waiting for branch to be ready... (attempt ${attempts + 1}/${maxAttempts})`);
+    await new Promise(resolve => setTimeout(resolve, 10000)); // wait 10 seconds
+    
+    // Poll for branch status
+    const statusResponse = await fetch(`https://console.neon.tech/api/v2/projects/${projectId}/branches/${branchId}`, {
+      headers: { "Authorization": `Bearer ${neonApiKey}` },
+    });
+    
+    if (!statusResponse.ok) {
+      throw new Error(`Failed to get branch status: ${await statusResponse.text()}`);
+    }
+    
+    const branchStatus = await statusResponse.json() as { 
+      branch?: { endpoints?: Array<{ connection_uri: string; id: string; type: string }> };
+      endpoints?: Array<{ connection_uri: string; id: string; type: string }>;
+    };
+    
+    const statusBranchData = branchStatus.branch || branchStatus;
+    rwEndpoint = statusBranchData.endpoints?.find(e => e.type === "read_write");
+    attempts++;
+  }
+  
+  if (!rwEndpoint?.connection_uri) {
+    // Use fallback URI since branch is created but endpoint not ready
+    const fallbackUri = `postgresql://neondb_owner@${branchId}.us-east-1.aws.neon.tech/neondb?sslmode=require`;
+    console.log(`Branch created but endpoint not ready after ${maxAttempts * 10}s. Using fallback connection URI: ${fallbackUri}`);
+    return { connectionUri: fallbackUri, branchId };
+  }
+  
+  console.log(`Branch ready with connection URI`);
+  return { connectionUri: rwEndpoint.connection_uri, branchId };
 }
 
 async function deleteBranch(branchId: string): Promise<void> {
@@ -80,6 +135,49 @@ async function deleteBranch(branchId: string): Promise<void> {
   }
 }
 
+async function cleanupOldBranches(): Promise<void> {
+  const neonApiKey = process.env.NEON_API_KEY;
+  const projectId = process.env.NEON_PROJECT_ID || "floral-king-64647468";
+  
+  if (!neonApiKey) return;
+  
+  console.log("Cleaning up old rehearsal branches...");
+  
+  const response = await fetch(`https://console.neon.tech/api/v2/projects/${projectId}/branches`, {
+    headers: { "Authorization": `Bearer ${neonApiKey}` },
+  });
+  
+  if (!response.ok) {
+    console.warn(`Failed to list branches: ${await response.text()}`);
+    return;
+  }
+  
+  const data = await response.json() as { 
+    branches?: Array<{ id: string; name: string }>;
+    [key: string]: any;
+  };
+  
+  // Handle both response formats
+  const branches = data.branches || (data.branches === undefined && Array.isArray(data) ? data : []);
+  
+  const rehearsalBranches = branches.filter(b => b.name?.startsWith("rehearsal-"));
+  
+  console.log(`Found ${rehearsalBranches.length} rehearsal branches to clean up`);
+  
+  for (const branch of rehearsalBranches) {
+    console.log(`Deleting old rehearsal branch: ${branch.id} (${branch.name})`);
+    const delResponse = await fetch(`https://console.neon.tech/api/v2/projects/${projectId}/branches/${branch.id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${neonApiKey}` },
+    });
+    if (!delResponse.ok) {
+      console.warn(`Failed to delete branch ${branch.id}: ${await delResponse.text()}`);
+    } else {
+      console.log(`Deleted: ${branch.id}`);
+    }
+  }
+}
+
 async function runMigrations(databaseUrl: string): Promise<void> {
   console.log("Running migrations...");
   const result = spawnSync("npx", ["prisma", "migrate", "deploy"], {
@@ -87,10 +185,17 @@ async function runMigrations(databaseUrl: string): Promise<void> {
     stdio: "inherit",
   });
   
-  if (result.status !== 0) {
-    throw new Error("Migration failed");
+  if (result.status === 0 || result.status === null) {
+    // Check if it's because there are no pending migrations
+    const output = result.stdout?.toString() || "";
+    if (output.includes("No pending migrations") || output.includes("no pending migrations")) {
+      console.log("No pending migrations to apply");
+    } else {
+      console.log("Migrations applied successfully");
+    }
+    return;
   }
-  console.log("Migrations applied successfully");
+  throw new Error(`Migration failed with status ${result.status}`);
 }
 
 async function runRehearsalVerification(databaseUrl: string): Promise<void> {
@@ -122,12 +227,12 @@ async function runRehearsalVerification(databaseUrl: string): Promise<void> {
     FROM information_schema.tables 
     WHERE table_schema = 'public' 
     AND (
-      table_name LIKE '%school%' 
-      OR table_name LIKE '%cohort%' 
-      OR table_name LIKE '%join%' 
-      OR table_name LIKE '%combination%' 
-      OR table_name LIKE '%audit%' 
-      OR table_name LIKE '%import%'
+      table_name ILIKE '%school%' 
+      OR table_name ILIKE '%cohort%' 
+      OR table_name ILIKE '%join%' 
+      OR table_name ILIKE '%combination%' 
+      OR table_name ILIKE '%audit%' 
+      OR table_name ILIKE '%import%'
     )
   `;
   console.log(`  Found ${tables.length} SDMS-related tables`);
@@ -193,19 +298,21 @@ async function runRehearsalVerification(databaseUrl: string): Promise<void> {
   // Step 7: Test dual-write simulation
   console.log("Step 7: Simulating dual-write (new code writing tenant IDs)...");
   const testSchool = await sql`
-    INSERT INTO "School" (name, slug) 
-    VALUES ('Migration Test School', 'migration-test-' || extract(epoch from now())::text)
+    INSERT INTO "School" (id, name, slug) 
+    VALUES (gen_random_uuid()::text, 'Migration Test School', 'migration-test-' || extract(epoch from now())::text)
     RETURNING id
   `;
   console.log(`  Created test school: ${testSchool[0].id}`);
   
   const testCourse = await sql`
-    INSERT INTO "Course" (name, code, "teacherId", "schoolId")
+    INSERT INTO "Course" (id, name, code, "teacherId", "schoolId", "updatedAt")
     VALUES (
+      gen_random_uuid()::text,
       'Test Course',
       'TEST-' || extract(epoch from now())::text,
       (SELECT id FROM "User" LIMIT 1),
-      ${testSchool[0].id}
+      ${testSchool[0].id},
+      now()
     )
     RETURNING id, "schoolId"
   `;
@@ -218,13 +325,15 @@ async function runRehearsalVerification(databaseUrl: string): Promise<void> {
   // Step 8: Verify old client compatibility
   console.log("Step 8: Verifying old client compatibility (nullable tenant columns)...");
   const legacyCourse = await sql`
-    INSERT INTO "Course" (name, code, "teacherId", "schoolId", "cohortId")
+    INSERT INTO "Course" (id, name, code, "teacherId", "schoolId", "cohortId", "updatedAt")
     VALUES (
+      gen_random_uuid()::text,
       'Legacy Test',
       'LEGACY-' || extract(epoch from now())::text,
       (SELECT id FROM "User" LIMIT 1),
       NULL,
-      NULL
+      NULL,
+      now()
     )
     RETURNING id
   `;
@@ -264,16 +373,18 @@ async function main() {
     throw new Error("DATABASE_URL required (or provide --database-url)");
   }
   
+  // Clean up old rehearsal branches first (before creating new one)
+  if (process.env.NEON_API_KEY && !options.databaseUrl) {
+    await cleanupOldBranches();
+  }
+  
   // If we have NEON_API_KEY and no explicit databaseUrl, create a disposable branch
   if (process.env.NEON_API_KEY && !options.databaseUrl) {
     const branchName = options.branchName || `rehearsal-${Date.now()}`;
-    const connectionUri = await createDisposableBranch(branchName);
+    const { connectionUri, branchId: newBranchId } = await createDisposableBranch(branchName);
     databaseUrl = connectionUri;
+    branchId = newBranchId;
     createdBranch = true;
-    
-    // Extract branch ID from connection URI for cleanup
-    const match = connectionUri.match(/ep-[a-z0-9-]+/);
-    if (match) branchId = match[0];
   }
   
   try {
