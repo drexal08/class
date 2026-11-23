@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { SchoolTeacherManager } from "@/components/school/school-teacher-manager";
@@ -37,7 +37,7 @@ export default async function SchoolAdminPage({
 
   // If no school selected and user has exactly one, redirect to it
   if (!schoolId && teacherSchools.length === 1) {
-    return <div className="container-page py-8">Redirecting…</div>;
+    redirect(`/admin?school=${teacherSchools[0].school.id}`);
   }
 
   // If schoolId provided, verify membership
