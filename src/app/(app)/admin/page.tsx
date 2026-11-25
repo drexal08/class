@@ -3,6 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { SchoolTeacherManager } from "@/components/school/school-teacher-manager";
+import { DisputeQueue } from "@/components/school/dispute-queue";
+import { ImportHistory } from "@/components/school/import-history";
+import { CodeRotation } from "@/components/school/code-rotation";
+import { SchoolSettings } from "@/components/school/school-settings";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -133,6 +137,35 @@ export default async function SchoolAdminPage({
               </div>
             ))}
           </div>
+        </section>
+
+        <section>
+          <DisputeQueue cohortId={overview.cohorts[0]?.id} disputes={[]} />
+        </section>
+
+        <section>
+          <ImportHistory cohortId={overview.cohorts[0]?.id} schoolId={overview.id} />
+        </section>
+
+        <section>
+          <CodeRotation
+            schoolId={overview.id}
+            cohorts={overview.cohorts}
+            schoolCode={overview.joinCodes[0]?.code ?? null}
+          />
+        </section>
+
+        <section>
+          <SchoolSettings
+            schoolId={overview.id}
+            initialSettings={{
+              name: overview.name,
+              slug: overview.slug,
+              isLegacy: overview.isLegacy,
+              disabledAt: overview.disabledAt,
+              requiresApproval: overview.requiresApproval,
+            }}
+          />
         </section>
       </div>
     </div>

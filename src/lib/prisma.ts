@@ -9,8 +9,7 @@ import { createLazyClientProxy } from "@/lib/lazy-client-proxy";
 // The two generated clients are structurally incompatible at the generic type
 // level. Keep this dynamic boundary erased; feature modules retain their own
 // explicit DTO types instead of recursing through two Prisma type universes.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PrismaClient = any;
+type PrismaClient = ReturnType<typeof import("@prisma/client").PrismaClient.prototype>;
 
 /**
  * Lazy Prisma singleton.

@@ -3,6 +3,7 @@
 import { randomInt } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 
 import { AuthError, requireUser, runAction } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
@@ -259,5 +260,89 @@ export async function promoteSchoolTeacherAction(
       },
     });
     revalidatePath(`/admin?school=${schoolId}`);
+  });
+}
+
+const updateSchoolSettingsSchema = z.object({
+  name: z.string().trim().min(2, "Enter the school name").max(120),
+  requiresApproval: z.boolean(),
+});
+
+export async function updateSchoolSettingsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const actor = await requireSchoolAdmin(formData.get("schoolId") as string);
+    const schoolId = formData.get("schoolId") as string;
+
+    const parsed = updateSchoolSettingsSchema.safeParse({
+      name: formData.get("name"),
+      requiresApproval: formData.get("requiresApproval") === "true",
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.school.update({
+        where: { id: schoolId },
+        data: {
+          name: parsed.data.name,
+          requiresApproval: parsed.data.requiresApproval,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          schoolId,
+          actorId: actor.user.id,
+          action: "SCHOOL_SETTINGS_UPDATED",
+          targetType: "School",
+          targetId: schoolId,
+          metadata: { name: parsed.data.name, requiresApproval: parsed.data.requiresApproval },
+        },
+      });
+    });
+    revalidatePath(`/admin?school=${schoolId}`);
+    revalidatePath("/platform");
+  });
+}
+
+/**
+ * Wrapper for updating school settings - can be called directly with simple params.
+ */
+export async function updateSchoolSettingsActionSimple(
+  schoolId: string,
+  name: string,
+  requiresApproval: boolean,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const actor = await requireSchoolAdmin(schoolId);
+
+    const parsed = updateSchoolSettingsSchema.safeParse({
+      name,
+      requiresApproval,
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.school.update({
+        where: { id: schoolId },
+        data: {
+          name: parsed.data.name,
+          requiresApproval: parsed.data.requiresApproval,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          schoolId,
+          actorId: actor.user.id,
+          action: "SCHOOL_SETTINGS_UPDATED",
+          targetType: "School",
+          targetId: schoolId,
+          metadata: { name: parsed.data.name, requiresApproval: parsed.data.requiresApproval },
+        },
+      });
+    });
+    revalidatePath(`/admin?school=${schoolId}`);
+    revalidatePath("/platform");
   });
 }

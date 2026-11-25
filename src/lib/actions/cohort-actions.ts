@@ -491,3 +491,190 @@ export async function rotateSchoolCodeAction(
   });
 }
 
+/**
+ * Wrapper for rotating cohort join code - can be called directly with simple params.
+ */
+export async function rotateCohortCodeAction(
+  cohortId: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const actor = await requireCohortManager(cohortId);
+
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const oldCode = await tx.joinCode.findFirst({
+        where: { cohortId, kind: "COHORT" },
+        select: { code: true },
+      });
+      const newCode = generateJoinCode("COHORT");
+      await tx.joinCode.updateMany({
+        where: { cohortId, kind: "COHORT" },
+        data: { code: newCode },
+      });
+      await tx.auditEvent.create({
+        data: {
+          schoolId: actor.cohort.schoolId,
+          actorId: actor.user.id,
+          action: "COHORT_JOIN_CODE_ROTATED",
+          targetType: "JoinCode",
+          targetId: cohortId,
+          metadata: { oldCode: oldCode?.code, newCode },
+        },
+      });
+    });
+
+    revalidatePath(`/admin/cohort/${cohortId}`);
+  });
+}
+
+/**
+ * Wrapper for rotating course join code - can be called directly with simple params.
+ */
+export async function rotateCourseCodeAction(
+  cohortId: string,
+  courseId: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const actor = await requireCohortManager(cohortId);
+
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const course = await tx.course.findUnique({
+        where: { id: courseId },
+        select: { cohortId: true, code: true, kind: true },
+      });
+      if (!course || course.cohortId !== cohortId) {
+        throw new Error("Course not found in this cohort");
+      }
+      const newCode = generateCourseCode(course.kind === "HOMEROOM" ? "HOMEROOM" : "SUBJECT");
+      await tx.course.update({
+        where: { id: courseId },
+        data: { code: newCode },
+      });
+      await tx.joinCode.updateMany({
+        where: { courseId, kind: "COURSE" },
+        data: { code: newCode },
+      });
+      await tx.auditEvent.create({
+        data: {
+          schoolId: actor.cohort.schoolId,
+          actorId: actor.user.id,
+          action: "COURSE_JOIN_CODE_ROTATED",
+          targetType: "JoinCode",
+          targetId: courseId,
+          metadata: { oldCode: course.code, newCode },
+        },
+      });
+    });
+
+    revalidatePath(`/admin/cohort/${cohortId}`);
+  });
+}
+
+/**
+ * Wrapper for rotating school join code - can be called directly with simple params.
+ */
+export async function rotateSchoolCodeActionSimple(
+  schoolId: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireSuperuser();
+
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const oldCode = await tx.joinCode.findFirst({
+        where: { schoolId, kind: "SCHOOL" },
+        select: { code: true },
+      });
+      const newCode = generateJoinCode("SCHOOL");
+      await tx.joinCode.updateMany({
+        where: { schoolId, kind: "SCHOOL" },
+        data: { code: newCode },
+      });
+      await tx.auditEvent.create({
+        data: {
+          schoolId,
+          actorId: (await requireSuperuser()).id,
+          action: "SCHOOL_JOIN_CODE_ROTATED",
+          targetType: "JoinCode",
+          targetId: schoolId,
+          metadata: { oldCode: oldCode?.code, newCode },
+        },
+      });
+    });
+
+    revalidatePath(`/admin?school=${schoolId}`);
+    revalidatePath("/platform");
+  });
+}
+
+/**
+ * Wrapper for resolving claim disputes - can be called directly with simple params.
+ */
+export async function resolveDisputeActionSimple(
+  cohortId: string,
+  disputeId: string,
+  action: "UNASSIGN" | "REASSIGN",
+): Promise<ActionState> {
+  return runAction(async () => {
+    const actor = await requireSchoolAdmin(
+      (await prisma.cohort.findUnique({
+        where: { id: cohortId },
+        select: { schoolId: true },
+      }))?.schoolId ?? "",
+    );
+
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const dispute = await tx.claimDispute.findUnique({
+        where: { id: disputeId },
+        select: {
+          id: true,
+          memberId: true,
+          code: true,
+          resolvedAt: true,
+          member: { select: { cohortId: true, userId: true } },
+        },
+      });
+      if (!dispute || dispute.resolvedAt || dispute.member.cohortId !== cohortId) {
+        throw new Error("Dispute not found or already resolved");
+      }
+
+      if (action === "UNASSIGN") {
+        await tx.claimDispute.update({
+          where: { id: disputeId },
+          data: { resolvedAt: new Date(), resolvedById: actor.user.id },
+        });
+        await tx.cohortMember.update({
+          where: { id: dispute.memberId },
+          data: { claimedAt: null, claimedIpHash: null, mustChangePassword: true },
+        });
+        await tx.auditEvent.create({
+          data: {
+            schoolId: actor.school.id,
+            actorId: actor.user.id,
+            action: "CLAIM_DISPUTE_RESOLVED",
+            targetType: "ClaimDispute",
+            targetId: disputeId,
+            metadata: { resolution: "UNASSIGN", code: dispute.code },
+          },
+        });
+      } else if (action === "REASSIGN") {
+        // For REASSIGN, we just mark as resolved - the admin will manually reassign
+        await tx.claimDispute.update({
+          where: { id: disputeId },
+          data: { resolvedAt: new Date(), resolvedById: actor.user.id },
+        });
+        await tx.auditEvent.create({
+          data: {
+            schoolId: actor.school.id,
+            actorId: actor.user.id,
+            action: "CLAIM_DISPUTE_RESOLVED",
+            targetType: "ClaimDispute",
+            targetId: disputeId,
+            metadata: { resolution: "REASSIGN", code: dispute.code },
+          },
+        });
+      }
+    });
+
+    revalidatePath(`/admin/cohort/${cohortId}`);
+  });
+}
+
