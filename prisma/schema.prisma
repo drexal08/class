@@ -15,6 +15,7 @@ datasource db {
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  inlineWasm = true
 }
 
 // For Cloudflare Workers (workerd) — static WASM import via workerd runtime
