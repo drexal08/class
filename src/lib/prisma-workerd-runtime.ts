@@ -24,11 +24,13 @@ const runtime = {
   Debug,
   getPrismaClient: getPrismaClientClass,
   getRuntime: async () => {
-    const mod = await import("../generated/prisma-workerd/internal/query_compiler_fast_bg.js");
+    // Dynamic import of WASM module - TypeScript doesn't have declarations for this
+    const mod: any = await import("../generated/prisma-workerd/internal/query_compiler_fast_bg.js");
     return mod;
   },
   getQueryCompilerWasmModule: async () => {
-    const mod = await import("../generated/prisma-workerd/internal/query_compiler_fast_bg.wasm?module");
+    // Dynamic import of WASM module - TypeScript doesn't have declarations for this
+    const mod: any = await import("../generated/prisma-workerd/internal/query_compiler_fast_bg.wasm?module");
     return mod.default;
   },
   importName: "./query_compiler_fast_bg.js",
