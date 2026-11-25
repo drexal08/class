@@ -23,7 +23,7 @@
         "./src/*"
       ],
       "@prisma/client": [
-        "./src/generated/prisma-workerd/client"
+        "./src/generated/prisma/client"
       ]
     },
     "plugins": [
