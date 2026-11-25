@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && tsx scripts/build-with-vars.mjs",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "vercel-build": "prisma generate && prisma migrate deploy && tsx scripts/build-with-vars.mjs",
     "start": "next start",
     "preview:workers": "opennextjs-cloudflare build && node scripts/patch-final-bundle.mjs && opennextjs-cloudflare preview",
     "deploy:workers": "opennextjs-cloudflare build && node scripts/patch-final-bundle.mjs && opennextjs-cloudflare deploy",
