@@ -28,7 +28,7 @@ export function AppHeader({ user }: { user: SessionUser }) {
           <LogoLockup nameClassName="hidden sm:inline" />
         </Link>
 
-        <PrimaryNav role={user.role} isAdmin={user.isAdmin} />
+        <PrimaryNav role={user.role} isAdmin={user.isAdmin} user={user} />
 
         <div className="ml-auto flex items-center gap-1">
           <Suspense fallback={<NotificationBellFallback />}>

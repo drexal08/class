@@ -1,18 +1,20 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, GraduationCap, AlertTriangle, Upload, RotateCcw, Settings, Building2, UserPlus, MoreHorizontal, ArrowRight, Copy, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, GraduationCap, AlertTriangle, Upload, RotateCcw, Settings, Building2, UserPlus, MoreHorizontal, ArrowRight, Copy, Calendar, Activity, TrendingUp, TrendingDown, Shield, Key, Zap, PieChart, BarChart3, FileText, Search, Plus, Database, Logs, Server, Cog, Merge, Globe, Eye, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn, accentClasses, displayNameOf } from "@/lib/utils";
 import { promoteCohortAction } from "@/lib/actions/promotion-action";
 import { EMPTY_ACTION_STATE, type ActionState } from "@/lib/types";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 type AdminTab = "teachers" | "cohorts" | "disputes" | "imports" | "codes" | "settings" | "promotion";
 
@@ -71,8 +73,26 @@ export function SchoolAdminLayout({ school, cohorts, members }: SchoolAdminLayou
   // Check if we're in a cohort-specific view
   const cohortId = searchParams.get("cohort");
 
+  // Stats
+  const stats = {
+    totalCohorts: cohorts.length,
+    totalStudents: cohorts.reduce((sum, c) => sum + c._count.members, 0),
+    totalCourses: cohorts.reduce((sum, c) => sum + c._count.courses, 0),
+    activeTeachers: members.filter(m => m.status === "ACTIVE").length,
+    pendingTeachers: members.filter(m => m.status === "PENDING").length,
+    adminCount: members.filter(m => m.role === "ADMIN").length,
+  };
+
+  // Calculate trends (mock data for demonstration)
+  const trends = {
+    students: { value: "+12%", label: "vs last month", positive: true },
+    cohorts: { value: "+2", label: "new this term", positive: true },
+    teachers: { value: "+5%", label: "vs last month", positive: true },
+    activity: { value: "2.3k", label: "active sessions today", positive: true },
+  };
+
   return (
-    <div className="flex h-full min-h-screen">
+    <div className="flex h-full min-h-screen bg-background">
       {/* Sidebar */}
       <aside
         className={cn(
@@ -84,9 +104,14 @@ export function SchoolAdminLayout({ school, cohorts, members }: SchoolAdminLayou
         {/* Header */}
         <div className={cn("flex items-center justify-between h-16 px-4 border-b border-border", sidebarCollapsed && "justify-center")}>
           {!sidebarCollapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-lg truncate">{school.name}</p>
-              <p className="text-xs text-muted-foreground truncate">{school.slug}</p>
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-primary p-2">
+                <Shield className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-lg truncate">{school.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{school.slug}</p>
+              </div>
             </div>
           )}
           <Button
@@ -105,39 +130,39 @@ export function SchoolAdminLayout({ school, cohorts, members }: SchoolAdminLayou
         <nav className="flex-1 overflow-y-auto p-3" aria-label="Main navigation">
           <div className="space-y-1">
             {TABS.map((tab) => (
-                <Button
-                  key={tab.value}
-                  variant={activeTab === tab.value ? "default" : "ghost"}
-                  className={cn(
-                    "w-full justify-start gap-3 text-left transition-colors",
-                    sidebarCollapsed && "justify-center px-2"
-                  )}
-                  onClick={() => {
-                    setActiveTab(tab.value);
-                    // Clear cohort filter when switching tabs
-                    const params = new URLSearchParams(searchParams.toString());
-                    params.delete("cohort");
-                    router.push(`/admin?${params.toString()}`);
-                  }}
-                  aria-current={activeTab === tab.value ? "page" : undefined}
-                  title={sidebarCollapsed ? tab.label : undefined}
-                >
-                  <span className="flex-shrink-0">{tab.icon}</span>
-                  {!sidebarCollapsed && (
-                    <span className="flex-1 text-left">
-                      <span className="font-medium block">{tab.label}</span>
-                      <span className="text-xs text-muted-foreground block truncate">{tab.description}</span>
-                    </span>
-                  )}
-                </Button>
-              ))}
-            </div>
-          </nav>
+              <Button
+                key={tab.value}
+                variant={activeTab === tab.value ? "default" : "ghost"}
+                className={cn(
+                  "w-full justify-start gap-3 text-left transition-colors",
+                  sidebarCollapsed && "justify-center px-2"
+                )}
+                onClick={() => {
+                  setActiveTab(tab.value);
+                  // Clear cohort filter when switching tabs
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.delete("cohort");
+                  router.push(`/admin?${params.toString()}`);
+                }}
+                aria-current={activeTab === tab.value ? "page" : undefined}
+                title={sidebarCollapsed ? tab.label : undefined}
+              >
+                <span className="flex-shrink-0">{tab.icon}</span>
+                {!sidebarCollapsed && (
+                  <span className="flex-1 text-left">
+                    <span className="font-medium block">{tab.label}</span>
+                    <span className="text-xs text-muted-foreground block truncate">{tab.description}</span>
+                  </span>
+                )}
+              </Button>
+            ))}
+          </div>
+        </nav>
 
         {/* Footer */}
         <div className={cn("p-3 border-t border-border", sidebarCollapsed && "hidden")}>
           <div className="text-xs text-muted-foreground text-center">
-            {cohorts.length} cohort{cohorts.length !== 1 ? "s" : ""} &bull; {members.filter(m => m.status === "ACTIVE").length} active teachers
+            {stats.totalCohorts} cohort{stats.totalCohorts !== 1 ? "s" : ""} &bull; {stats.activeTeachers} active teachers
           </div>
         </div>
       </aside>
@@ -153,9 +178,43 @@ export function SchoolAdminLayout({ school, cohorts, members }: SchoolAdminLayou
             </div>
           </div>
 
+          {/* Stats Cards (Overview only - when on teachers tab) */}
+          {activeTab === "teachers" && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <EnhancedStatCard
+                title="Total Cohorts"
+                value={stats.totalCohorts}
+                icon={<GraduationCap className="h-5 w-5" />}
+                trend={trends.cohorts}
+                accent="primary"
+              />
+              <EnhancedStatCard
+                title="Total Students"
+                value={stats.totalStudents}
+                icon={<Users className="h-5 w-5" />}
+                trend={trends.students}
+                accent="info"
+              />
+              <EnhancedStatCard
+                title="Active Teachers"
+                value={stats.activeTeachers}
+                icon={<Activity className="h-5 w-5" />}
+                trend={trends.teachers}
+                accent="success"
+              />
+              <EnhancedStatCard
+                title="Total Courses"
+                value={stats.totalCourses}
+                icon={<BookOpen className="h-5 w-5" />}
+                trend={{ value: `${stats.totalCourses}`, label: "across cohorts", positive: true }}
+                accent="warning"
+              />
+            </div>
+          )}
+
           {/* Tab Content */}
           <div className="space-y-6">
-            {activeTab === "teachers" && <TeachersTab schoolId={school.id} members={members} requiresApproval={school.requiresApproval} />}
+            {activeTab === "teachers" && <TeachersTab schoolId={school.id} members={members} requiresApproval={school.requiresApproval} stats={stats} />}
             {activeTab === "cohorts" && <CohortsTab cohorts={cohorts} />}
             {activeTab === "disputes" && <DisputesTab cohorts={cohorts} />}
             {activeTab === "imports" && <ImportsTab schoolId={school.id} cohorts={cohorts} />}
@@ -169,7 +228,57 @@ export function SchoolAdminLayout({ school, cohorts, members }: SchoolAdminLayou
   );
 }
 
-function TeachersTab({ schoolId, members, requiresApproval }: { schoolId: string; members: Member[]; requiresApproval: boolean }) {
+import { BookOpen } from "lucide-react";
+
+function EnhancedStatCard({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  accent,
+}: {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  trend?: { value: string; label: string; positive: boolean } | null;
+  accent: "primary" | "success" | "warning" | "info";
+}) {
+  const accentStyles = {
+    primary: "bg-primary/10 text-primary",
+    success: "bg-success/10 text-success",
+    warning: "bg-warning/10 text-warning",
+    info: "bg-info/10 text-info",
+  };
+
+  const trendColors = {
+    positive: "text-success",
+    negative: "text-destructive",
+  };
+
+  return (
+    <Card className="p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">{title}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{value.toLocaleString()}</p>
+          {trend && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <span className={cn("text-xs font-medium", trendColors[trend.positive ? "positive" : "negative"])}>
+                {trend.value}
+              </span>
+              <span className="text-xs text-muted-foreground">{trend.label}</span>
+            </div>
+          )}
+        </div>
+        <div className={cn("rounded-lg p-2", accentStyles[accent])}>
+          {Icon}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function TeachersTab({ schoolId, members, requiresApproval, stats }: { schoolId: string; members: Member[]; requiresApproval: boolean; stats: { activeTeachers: number; pendingTeachers: number; adminCount: number } }) {
   return (
     <div className="space-y-6">
       <Card>
@@ -189,13 +298,13 @@ function TeachersTab({ schoolId, members, requiresApproval }: { schoolId: string
         <CardContent>
           <div className="space-y-4">
             {members.map((member: Member) => (
-              <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-border">
+              <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
-                    {member.user.displayName?.[0]?.toUpperCase() || member.user.email[0].toUpperCase()}
+                    {displayNameOf(member.user)[0]?.toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-medium">{member.user.displayName || member.user.email}</p>
+                    <p className="font-medium">{displayNameOf(member.user)}</p>
                     <p className="text-sm text-muted-foreground">{member.user.email}</p>
                   </div>
                 </div>
@@ -402,7 +511,7 @@ function SettingsTab({ school }: { school: School }) {
                 <p className="font-medium">Teacher Approval Required</p>
                 <p className="text-sm text-muted-foreground">Teachers must be approved by an admin before accessing the school</p>
               </div>
-              <Button variant="outline" size="sm">{school.requiresApproval ? "Enabled" : "Disabled"}</Button>
+              <Badge variant={school.requiresApproval ? "success" : "secondary"}>{school.requiresApproval ? "Enabled" : "Disabled"}</Badge>
             </div>
 
             <div className="flex items-center justify-between">

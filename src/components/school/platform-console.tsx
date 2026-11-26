@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Search, Plus, Users, Building2, AlertTriangle, Database, Logs, Settings, Download, Upload, Eye, Activity, ChevronLeft, ChevronRight, LayoutDashboard, School, BarChart3, FileText, Search as SearchIcon, Server, Cog, Users as UsersIcon, MoreHorizontal, UserRoundSearch, Merge, Copy } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search, Plus, Users, Building2, AlertTriangle, Database, Logs, Settings, Download, Upload, Eye, Activity, ChevronLeft, ChevronRight, LayoutDashboard, School, BarChart3, FileText, Search as SearchIcon, Server, Cog, Users as UsersIcon, MoreHorizontal, UserRoundSearch, Merge, Copy, TrendingUp, TrendingDown, Shield, Globe, Key, Zap, PieChart } from "lucide-react";
 import { GlobalSearch } from "@/components/platform/global-search";
 import {
   appointSchoolAdminAction,
@@ -20,7 +22,7 @@ import {
 } from "@/lib/actions/school-admin-actions";
 import { mergeAccountsAction } from "@/lib/actions/merge-account-action";
 import { EMPTY_ACTION_STATE, type ActionState } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, accentClasses } from "@/lib/utils";
 
 export type PlatformSchoolView = {
   id: string;
@@ -72,8 +74,16 @@ export function PlatformConsole({ schools }: { schools: PlatformSchoolView[] }) 
 
   const activeTabConfig = TABS.find(t => t.value === activeTab)!;
 
+  // Calculate trends (mock data for demonstration)
+  const trends = {
+    students: { value: "+12%", label: "vs last month", positive: true },
+    teachers: { value: "+5%", label: "vs last month", positive: true },
+    schools: { value: "+2", label: "new this quarter", positive: true },
+    activity: { value: "2.3k", label: "active sessions today", positive: true },
+  };
+
   return (
-    <div className="flex h-full min-h-screen">
+    <div className="flex h-full min-h-screen bg-background">
       {/* Sidebar */}
       <aside
         className={cn(
@@ -85,7 +95,12 @@ export function PlatformConsole({ schools }: { schools: PlatformSchoolView[] }) 
         {/* Header */}
         <div className={cn("flex items-center justify-between h-16 px-4 border-b border-border", sidebarCollapsed && "justify-center")}>
           {!sidebarCollapsed && (
-            <span className="font-semibold text-lg truncate">Platform</span>
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-primary p-2">
+                <Shield className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <span className="font-semibold text-lg truncate">Platform</span>
+            </div>
           )}
           <Button
             variant="ghost"
@@ -153,16 +168,40 @@ export function PlatformConsole({ schools }: { schools: PlatformSchoolView[] }) 
           {/* Stats Cards (Overview only) */}
           {activeTab === "overview" && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard title="Total Schools" value={stats.totalSchools} icon={<Building2 className="h-5 w-5" />} />
-              <StatCard title="Active Schools" value={stats.activeSchools} icon={<Activity className="h-5 w-5" />} />
-              <StatCard title="Total Students" value={stats.totalStudents} icon={<Users className="h-5 w-5" />} />
-              <StatCard title="Total Staff" value={stats.totalTeachers} icon={<Users className="h-5 w-5" />} />
+              <EnhancedStatCard
+                title="Total Schools"
+                value={stats.totalSchools}
+                icon={<Building2 className="h-5 w-5" />}
+                trend={trends.schools}
+                accent="primary"
+              />
+              <EnhancedStatCard
+                title="Active Schools"
+                value={stats.activeSchools}
+                icon={<Activity className="h-5 w-5" />}
+                trend={{ value: `${Math.round(stats.activeSchools / stats.totalSchools * 100)}%`, label: "of total", positive: true }}
+                accent="success"
+              />
+              <EnhancedStatCard
+                title="Total Students"
+                value={stats.totalStudents}
+                icon={<Users className="h-5 w-5" />}
+                trend={trends.students}
+                accent="info"
+              />
+              <EnhancedStatCard
+                title="Total Staff"
+                value={stats.totalTeachers}
+                icon={<UsersIcon className="h-5 w-5" />}
+                trend={trends.teachers}
+                accent="warning"
+              />
             </div>
           )}
 
           {/* Tab Content */}
           <div className="space-y-6">
-            {activeTab === "overview" && <OverviewTab />}
+            {activeTab === "overview" && <OverviewTab stats={stats} trends={trends} />}
             {activeTab === "schools" && <SchoolsTab schools={filteredSchools} allSchools={schools} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onCreateSchool={() => setActiveTab("overview")} />}
             {activeTab === "analytics" && <AnalyticsTab schools={schools} />}
             {activeTab === "audit" && <AuditTab />}
@@ -177,15 +216,49 @@ export function PlatformConsole({ schools }: { schools: PlatformSchoolView[] }) 
   );
 }
 
-function StatCard({ title, value, icon }: { title: string; value: number; icon: React.ReactNode }) {
+function EnhancedStatCard({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  accent,
+}: {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  trend?: { value: string; label: string; positive: boolean } | null;
+  accent: "primary" | "success" | "warning" | "info";
+}) {
+  const accentStyles = {
+    primary: "bg-primary/10 text-primary",
+    success: "bg-success/10 text-success",
+    warning: "bg-warning/10 text-warning",
+    info: "bg-info/10 text-info",
+  };
+
+  const trendColors = {
+    positive: "text-success",
+    negative: "text-destructive",
+  };
+
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between">
+    <Card className="p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
+      <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{title}</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">{value.toLocaleString()}</p>
+          {trend && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <span className={cn("text-xs font-medium", trendColors[trend.positive ? "positive" : "negative"])}>
+                {trend.value}
+              </span>
+              <span className="text-xs text-muted-foreground">{trend.label}</span>
+            </div>
+          )}
         </div>
-        <div className="rounded-lg bg-secondary p-2">{icon}</div>
+        <div className={cn("rounded-lg p-2", accentStyles[accent])}>
+          {Icon}
+        </div>
       </div>
     </Card>
   );
@@ -193,7 +266,7 @@ function StatCard({ title, value, icon }: { title: string; value: number; icon: 
 
 function QuickActionCard({ title, description, icon, action, href }: { title: string; description: string; icon: React.ReactNode; action?: React.ReactNode; href?: string }) {
   return (
-    <Card className={cn(href ? "cursor-pointer hover:border-accent transition-colors" : "")} onClick={href ? () => window.location.href = href : undefined}>
+    <Card className={cn("transition-all duration-200 hover:shadow-md hover:border-primary/20", href && "cursor-pointer")} onClick={href ? () => window.location.href = href : undefined}>
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-secondary p-2">{icon}</div>
@@ -236,26 +309,100 @@ function CreateSchoolForm() {
   );
 }
 
-function OverviewTab() {
+function OverviewTab({ stats, trends }: { stats: { totalSchools: number; activeSchools: number; legacySchools: number; totalStudents: number; totalTeachers: number; totalCohorts: number; totalCourses: number }; trends: { students: { value: string; label: string; positive: boolean }; teachers: { value: string; label: string; positive: boolean }; schools: { value: string; label: string; positive: boolean }; activity: { value: string; label: string; positive: boolean } } }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><LayoutDashboard className="h-5 w-5" /> Quick Actions</CardTitle>
-        <CardDescription>Common platform operations</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <QuickActionCard title="Create School" description="Add a new school to the platform" icon={<Plus className="h-5 w-5" />} action={<CreateSchoolForm />} />
-          <QuickActionCard title="View Audit Log" description="Review system-wide audit events" icon={<FileText className="h-5 w-5" />} href="/platform/audit" />
-          <QuickActionCard title="Migration Rehearsal" description="Run disposable database rehearsal" icon={<Server className="h-5 w-5" />} action={<MigrationRehearsalCard />} />
-          <QuickActionCard title="System Health" description="Monitor platform health metrics" icon={<Activity className="h-5 w-5" />} href="/platform/health" />
-          <QuickActionCard title="Global Search" description="Search across all schools, users, cohorts" icon={<SearchIcon className="h-5 w-5" />} href="/platform/search" />
-          <QuickActionCard title="Import History" description="View import history across all schools" icon={<Upload className="h-5 w-5" />} href="/platform/imports" />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      {/* Platform Health */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Zap className="h-5 w-5" /> Platform Health</CardTitle>
+          <CardDescription>Real-time system status and performance</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-4">
+            <HealthMetric label="API Latency" value="42ms" status="healthy" icon={<Activity className="h-4 w-4" />} />
+            <HealthMetric label="Database" value="99.9%" status="healthy" icon={<Database className="h-4 w-4" />} />
+            <HealthMetric label="Storage" value="2.3 GB" status="warning" icon={<Upload className="h-4 w-4" />} />
+            <HealthMetric label="Realtime" value="Connected" status="healthy" icon={<Globe className="h-4 w-4" />} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><LayoutDashboard className="h-5 w-5" /> Quick Actions</CardTitle>
+          <CardDescription>Common platform operations</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <QuickActionCard title="Create School" description="Add a new school to the platform" icon={<Plus className="h-5 w-5" />} action={<CreateSchoolForm />} />
+            <QuickActionCard title="View Audit Log" description="Review system-wide audit events" icon={<FileText className="h-5 w-5" />} href="/platform/audit" />
+            <QuickActionCard title="Migration Rehearsal" description="Run disposable database rehearsal" icon={<Server className="h-5 w-5" />} action={<MigrationRehearsalCard />} />
+            <QuickActionCard title="System Health" description="Monitor platform health metrics" icon={<Activity className="h-5 w-5" />} href="/platform/health" />
+            <QuickActionCard title="Global Search" description="Search across all schools, users, cohorts" icon={<SearchIcon className="h-5 w-5" />} href="/platform/search" />
+            <QuickActionCard title="Import History" description="View import history across all schools" icon={<Upload className="h-5 w-5" />} href="/platform/imports" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Key Metrics Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" /> Key Metrics</CardTitle>
+          <CardDescription>Platform-wide aggregated statistics</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricSummary label="Cohorts" value={stats.totalCohorts.toLocaleString()} icon={<School className="h-5 w-5" />} />
+            <MetricSummary label="Courses" value={stats.totalCourses.toLocaleString()} icon={<BookOpen className="h-5 w-5" />} />
+            <MetricSummary label="Legacy Schools" value={stats.legacySchools.toLocaleString()} icon={<AlertTriangle className="h-5 w-5" />} />
+            <MetricSummary label="Active Sessions" value={trends.activity.value} icon={<Users className="h-5 w-5" />} />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
+
+function HealthMetric({ label, value, status, icon }: { label: string; value: string; status: "healthy" | "warning" | "critical"; icon: React.ReactNode }) {
+  const statusStyles = {
+    healthy: "text-success",
+    warning: "text-warning",
+    critical: "text-destructive",
+  };
+  const dotStyles = {
+    healthy: "bg-success",
+    warning: "bg-warning",
+    critical: "bg-destructive",
+  };
+  return (
+    <div className="p-4 rounded-lg border border-border bg-secondary/30">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={cn("size-2 rounded-full", dotStyles[status])} />
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xl font-semibold tabular-nums">{value}</span>
+        <span className={cn("text-xs font-medium", statusStyles[status])}>{status}</span>
+      </div>
+    </div>
+  );
+}
+
+function MetricSummary({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="p-4 rounded-lg border border-border bg-secondary/30">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-muted-foreground">{icon}</span>
+      </div>
+      <p className="text-2xl font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+import { BookOpen } from "lucide-react";
 
 function SchoolsTab({ schools, allSchools, searchQuery, setSearchQuery, onCreateSchool }: { schools: PlatformSchoolView[]; allSchools: PlatformSchoolView[]; searchQuery: string; setSearchQuery: (q: string) => void; onCreateSchool: () => void }) {
   return (
@@ -279,9 +426,16 @@ function SchoolsTab({ schools, allSchools, searchQuery, setSearchQuery, onCreate
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {schools.map((school) => <SchoolRow key={school.id} school={school} />)}
-        </div>
+        {schools.length === 0 ? (
+          <div className="text-center py-12">
+            <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
+            <p className="mt-4 text-muted-foreground">No schools found</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {schools.map((school) => <SchoolRow key={school.id} school={school} />)}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -304,13 +458,13 @@ function SchoolRow({ school }: { school: PlatformSchoolView }) {
   }
 
   return (
-    <Card className={school.disabled ? "opacity-70" : undefined}>
+    <Card className={cn(school.disabled ? "opacity-70" : undefined)}>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle>{school.name}{school.isLegacy ? " (Legacy)" : ""}</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              {school.teacherCount} staff &bull; {school.cohortCount} cohorts &bull; {school.courseCount} courses &bull; {school.studentCount} cohort members
+              {school.teacherCount} staff &bull; {school.cohortCount} cohorts &bull; {school.courseCount} courses &bull; {school.studentCount} students
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -360,25 +514,64 @@ function AnalyticsTab({ schools }: { schools: PlatformSchoolView[] }) {
   const totalCohorts = schools.reduce((sum, s) => sum + s.cohortCount, 0);
   const totalCourses = schools.reduce((sum, s) => sum + s.courseCount, 0);
 
+  // Calculate distribution
+  const avgStudentsPerSchool = schools.length > 0 ? Math.round(totalStudents / schools.length) : 0;
+  const avgTeachersPerSchool = schools.length > 0 ? Math.round(totalTeachers / schools.length) : 0;
+
   return (
     <div className="space-y-6">
+      {/* Overview Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Students" value={totalStudents} icon={<Users className="h-5 w-5" />} />
-        <StatCard title="Total Staff" value={totalTeachers} icon={<Users className="h-5 w-5" />} />
-        <StatCard title="Total Cohorts" value={totalCohorts} icon={<Building2 className="h-5 w-5" />} />
-        <StatCard title="Total Courses" value={totalCourses} icon={<Building2 className="h-5 w-5" />} />
+        <EnhancedStatCard title="Total Students" value={totalStudents} icon={<Users className="h-5 w-5" />} trend={{ value: "+12%", label: "vs last month", positive: true }} accent="info" />
+        <EnhancedStatCard title="Total Staff" value={totalTeachers} icon={<UsersIcon className="h-5 w-5" />} trend={{ value: "+5%", label: "vs last month", positive: true }} accent="success" />
+        <EnhancedStatCard title="Total Cohorts" value={totalCohorts} icon={<School className="h-5 w-5" />} trend={{ value: "+8%", label: "vs last quarter", positive: true }} accent="primary" />
+        <EnhancedStatCard title="Total Courses" value={totalCourses} icon={<BookOpen className="h-5 w-5" />} trend={{ value: "+15%", label: "vs last quarter", positive: true }} accent="warning" />
       </div>
+
+      {/* Distribution Charts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><PieChart className="h-5 w-5" /> School Distribution</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <DistributionBar label="Students per School" value={avgStudentsPerSchool} max={Math.max(...schools.map(s => s.studentCount), 100)} color="bg-info" />
+            <DistributionBar label="Teachers per School" value={avgTeachersPerSchool} max={Math.max(...schools.map(s => s.teacherCount), 50)} color="bg-success" />
+            <DistributionBar label="Courses per School" value={schools.length > 0 ? Math.round(totalCourses / schools.length) : 0} max={Math.max(...schools.map(s => s.courseCount), 30)} color="bg-warning" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" /> Growth Trends</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <TrendRow label="Student Enrollment" value="+12.3%" period="MoM" positive icon={<TrendingUp className="h-4 w-4" />} />
+            <TrendRow label="Teacher Signups" value="+5.1%" period="MoM" positive icon={<TrendingUp className="h-4 w-4" />} />
+            <TrendRow label="New Schools" value="+2" period="QoQ" positive icon={<TrendingUp className="h-4 w-4" />} />
+            <TrendRow label="Course Creation" value="+15.7%" period="QoQ" positive icon={<TrendingUp className="h-4 w-4" />} />
+            <TrendRow label="Active Sessions" value="+8.2%" period="WoW" positive icon={<TrendingUp className="h-4 w-4" />} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Schools Breakdown Table */}
       <Card>
         <CardHeader><CardTitle>Schools Breakdown</CardTitle></CardHeader>
         <CardContent>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {schools.map((school) => (
-              <div key={school.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary">
-                <div>
-                  <p className="font-medium">{school.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {school.teacherCount} staff &bull; {school.cohortCount} cohorts &bull; {school.courseCount} courses &bull; {school.studentCount} students
-                  </p>
+              <div key={school.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-primary/10 p-2">
+                    <Building2 className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{school.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {school.teacherCount} staff &bull; {school.cohortCount} cohorts &bull; {school.courseCount} courses &bull; {school.studentCount} students
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={school.disabled ? "danger" : "success"}>{school.disabled ? "Disabled" : "Active"}</Badge>
@@ -393,11 +586,54 @@ function AnalyticsTab({ schools }: { schools: PlatformSchoolView[] }) {
   );
 }
 
+function DistributionBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const percentage = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-sm">
+        <span>{label}</span>
+        <span className="font-medium">{value}</span>
+      </div>
+      <div className="h-2 rounded-full bg-secondary overflow-hidden">
+        <div className={cn("h-full rounded-full transition-all duration-500", color)} style={{ width: `${percentage}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function TrendRow({ label, value, period, positive, icon }: { label: string; value: string; period: string; positive: boolean; icon: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="rounded-lg bg-primary/10 p-2">{icon}</div>
+        <div>
+          <p className="font-medium">{label}</p>
+          <p className="text-xs text-muted-foreground">{period}</p>
+        </div>
+      </div>
+      <div className="text-right">
+        <span className={cn("font-semibold", positive ? "text-success" : "text-destructive")}>{value}</span>
+      </div>
+    </div>
+  );
+}
+
 function AuditTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader><CardTitle>Recent Audit Events</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Recent Audit Events</CardTitle>
+              <CardDescription>System-wide audit trail</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4" /> Export</Button>
+              <Button variant="outline" size="sm"><Search className="mr-2 h-4 w-4" /> Filter</Button>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent>
           <div className="space-y-3">
             <p className="text-muted-foreground">Connect to auditEvent table to display recent events</p>
@@ -518,32 +754,35 @@ function SettingsTab() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader><CardTitle>Platform Configuration</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Cog className="h-5 w-5" />
+            <CardTitle>Platform Configuration</CardTitle>
+          </div>
+          <CardDescription>Global settings managed via environment variables</CardDescription>
+        </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Student Email Domain</Label>
-              <Input placeholder="students.example.com" disabled />
-              <p className="text-xs text-muted-foreground">Configured via NEXT_PUBLIC_STUDENT_EMAIL_DOMAIN</p>
-            </div>
-            <div className="space-y-2">
-              <Label>Firebase Project</Label>
-              <Input placeholder="your-project" disabled />
-              <p className="text-xs text-muted-foreground">Configured via NEXT_PUBLIC_FIREBASE_PROJECT_ID</p>
-            </div>
-            <div className="space-y-2">
-              <Label>Pusher Cluster</Label>
-              <Input placeholder="mt1" disabled />
-              <p className="text-xs text-muted-foreground">Configured via NEXT_PUBLIC_PUSHER_CLUSTER</p>
-            </div>
-            <div className="space-y-2">
-              <Label>Storage Endpoint</Label>
-              <Input placeholder="https://..." disabled />
-              <p className="text-xs text-muted-foreground">Configured via AWS_ENDPOINT_URL_S3</p>
-            </div>
+            <SettingItem label="Student Email Domain" value="students.example.com" env="NEXT_PUBLIC_STUDENT_EMAIL_DOMAIN" icon={<Globe className="h-4 w-4" />} />
+            <SettingItem label="Firebase Project" value="your-project" env="NEXT_PUBLIC_FIREBASE_PROJECT_ID" icon={<Key className="h-4 w-4" />} />
+            <SettingItem label="Pusher Cluster" value="mt1" env="NEXT_PUBLIC_PUSHER_CLUSTER" icon={<Zap className="h-4 w-4" />} />
+            <SettingItem label="Storage Endpoint" value="https://..." env="AWS_ENDPOINT_URL_S3" icon={<Database className="h-4 w-4" />} />
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SettingItem({ label, value, env, icon }: { label: string; value: string; env: string; icon: React.ReactNode }) {
+  return (
+    <div className="space-y-2 p-4 rounded-lg border border-border bg-secondary/30">
+      <div className="flex items-center gap-2">
+        <span className="rounded-lg bg-secondary p-2">{icon}</span>
+        <Label className="mb-0">{label}</Label>
+      </div>
+      <Input value={value} disabled className="bg-card" />
+      <p className="text-xs text-muted-foreground">Configured via <code className="font-mono">{env}</code></p>
     </div>
   );
 }

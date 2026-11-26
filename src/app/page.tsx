@@ -93,6 +93,10 @@ export default function LandingPage() {
               aria-hidden
               className="pointer-events-none absolute inset-x-0 top-0 h-[30rem] hero-grid hero-mask"
             />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,var(--primary)/0.08,transparent_70%)]"
+            />
 
             <div className="container-page relative py-16 sm:py-20 lg:py-28">
               <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
@@ -151,11 +155,13 @@ export default function LandingPage() {
                   const Icon = PRINCIPLE_ICONS[principle.icon];
                   return (
                     <li key={principle.title}>
-                      <Icon
-                        className="size-5 text-muted-foreground"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
+                      <div className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                        <Icon
+                          className="size-5"
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                      </div>
                       <h3 className="mt-3 text-base font-semibold tracking-tight">
                         {principle.title}
                       </h3>
@@ -199,8 +205,8 @@ export default function LandingPage() {
                   const Icon = FEATURE_ICONS[feature.icon];
                   return (
                     <li key={feature.title}>
-                      <Card className="h-full p-6">
-                        <span className="inline-flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
+                      <Card className="h-full p-6 transition-shadow hover:shadow-md">
+                        <span className="inline-flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                           <Icon
                             className="size-5"
                             strokeWidth={1.75}
@@ -266,7 +272,7 @@ export default function LandingPage() {
           {/* ---------------------------------------------------------------
               Closing call to action
           ---------------------------------------------------------------- */}
-          <section className="bg-primary text-primary-foreground">
+          <section className="relative bg-primary text-primary-foreground">
             <div className="container-page py-16 sm:py-20">
               <div className="flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
@@ -304,6 +310,10 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
+            <div 
+              aria-hidden 
+              className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,var(--primary)/0.15,transparent_70%)]"
+            />
           </section>
         </main>
 
@@ -334,7 +344,7 @@ function WorkflowCard({
       className="scroll-mt-24 p-6 sm:p-8"
       aria-labelledby={`${id}-heading`}
     >
-      <span className="inline-flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
+      <span className="inline-flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
         <Icon className="size-5" strokeWidth={1.75} aria-hidden />
       </span>
       <h3

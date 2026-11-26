@@ -4,12 +4,10 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------------------------------
-   LMS Core design tokens
+   LMS Core design tokens — Blue accent edition
 
-   An educational platform: the palette is deliberately calm and low-contrast in
-   its accents so that student work — not the interface — carries the visual
-   weight. Slate and cool grey only; saturated colour is reserved for status
-   semantics (overdue, graded) where it must be noticed.
+   An educational platform with a calm blue brand identity. Slate surfaces
+   with blue primary/ring for trust and focus. Status colors remain semantic.
    --------------------------------------------------------------------------- */
 
 :root {
@@ -23,26 +21,26 @@
   --popover: #ffffff;
   --popover-foreground: #1e293b;
 
-  /* Action — slate, never a saturated brand blue */
-  --primary: #1e293b; /* slate-800 */
+  /* Action — Trust blue */
+  --primary: #1e40af; /* blue-800 */
   --primary-foreground: #f8fafc;
 
-  --secondary: #f1f5f9; /* slate-100 */
-  --secondary-foreground: #334155; /* slate-700 */
+  --secondary: #eff6ff; /* blue-50 */
+  --secondary-foreground: #1e40af; /* blue-800 */
 
   --muted: #f1f5f9;
   --muted-foreground: #64748b; /* slate-500 — muted labels */
 
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
+  --accent: #dbeafe; /* blue-100 */
+  --accent-foreground: #1e3a8a; /* blue-900 */
 
   --destructive: #b91c1c;
   --destructive-foreground: #fef2f2;
 
   /* Lines & focus */
   --border: #e2e8f0; /* slate-200 — soft borders */
-  --input: #cbd5e1; /* slate-300 — input outline, AA on white */
-  --ring: #475569; /* slate-600 — focus ring */
+  --input: #93c5fd; /* blue-300 — input outline */
+  --ring: #3b82f6; /* blue-500 — focus ring */
 
   /* Status: desaturated, readable, never neon */
   --success: #15803d;
@@ -67,24 +65,24 @@
   --popover: #1e293b;
   --popover-foreground: #e2e8f0;
 
-  --primary: #e2e8f0;
+  --primary: #60a5fa; /* blue-400 */
   --primary-foreground: #0f172a;
 
-  --secondary: #334155;
-  --secondary-foreground: #e2e8f0;
+  --secondary: #1e3a8a; /* blue-900 */
+  --secondary-foreground: #dbeafe; /* blue-100 */
 
   --muted: #1e293b;
   --muted-foreground: #94a3b8;
 
-  --accent: #334155;
-  --accent-foreground: #f8fafc;
+  --accent: #1e40af; /* blue-800 */
+  --accent-foreground: #dbeafe; /* blue-100 */
 
   --destructive: #f87171;
   --destructive-foreground: #450a0a;
 
   --border: #334155;
-  --input: #475569;
-  --ring: #94a3b8;
+  --input: #3b82f6; /* blue-500 */
+  --ring: #60a5fa; /* blue-400 */
 
   --success: #4ade80;
   --success-muted: #052e16;
