@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, GraduationCap, Loader2, Mail, Lock, School } from "lucide-react";
+import { AlertCircle, GraduationCap, Loader2, Mail, Lock, School, User } from "lucide-react";
 
 import {
   devSignInAction,
@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 type Mode = "signin" | "signup";
@@ -187,121 +188,127 @@ export function AuthForm({
         </Alert>
       )}
 
-      {firebaseEnabled && (
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={pending}
-            onClick={() => run(() => googleAction(role || undefined))}
-          >
-            <GoogleMark />
-            Continue with Google
-          </Button>
+      <Tabs defaultValue="google" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="google" disabled={!firebaseEnabled}>
+            <GoogleMark className="mr-2 h-4 w-4" /> Google
+          </TabsTrigger>
+          <TabsTrigger value="student-code">Student Code</TabsTrigger>
+          <TabsTrigger value="email">Email</TabsTrigger>
+        </TabsList>
 
-          <div className="my-5 flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <StudentCodeLogin next={params.get("next") ?? undefined} />
-
-          <div className="my-5 flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-        </>
-      )}
-
-      <form onSubmit={onSubmit} className="space-y-4">
-        {isSignUp && (
-          <div className="space-y-2">
-            <Label htmlFor="displayName">Full name</Label>
-            <Input
-              id="displayName"
-              name="displayName"
-              autoComplete="name"
-              placeholder="Ada Lovelace"
-              required={!useDevMode}
-              disabled={unavailable || pending}
-            />
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@school.edu"
-            required
-            disabled={unavailable || pending}
-          />
-        </div>
-
-        {!useDevMode && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              {isSignUp && (
-                <span className="text-xs text-muted-foreground">
-                  8+ characters
-                </span>
-              )}
-            </div>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete={isSignUp ? "new-password" : "current-password"}
-              required
-              disabled={unavailable || pending}
-            />
-          </div>
-        )}
-
-        {isSignUp && (
-          <div className="space-y-2">
-            <Label htmlFor="role">I am a</Label>
-            <Select
-              name="role"
-              value={role}
-              onValueChange={(value) => setRole(value as Role)}
+        <TabsContent value="google" className="space-y-4">
+          {firebaseEnabled ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={pending}
+              onClick={() => run(() => googleAction(role || undefined))}
             >
-              <SelectTrigger id="role" disabled={unavailable || pending}>
-                <SelectValue placeholder="Choose one" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="STUDENT">Student</SelectItem>
-                <SelectItem value="TEACHER">Teacher</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Teachers can create classes. Students join with a class code.
+              <GoogleMark />
+              Continue with Google
+            </Button>
+          ) : (
+            <p className="text-center text-sm text-muted-foreground">
+              Google sign-in is not configured. Add Firebase keys to enable it.
             </p>
-          </div>
-        )}
+          )}
+        </TabsContent>
 
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={
-            unavailable || pending || (isSignUp && role !== "TEACHER" && role !== "STUDENT")
-          }
-        >
-          {pending && <Loader2 className="animate-spin" />}
-          {pending
-            ? "Please wait…"
-            : isSignUp
-              ? "Create account"
-              : "Sign in"}
-        </Button>
-      </form>
+        <TabsContent value="student-code" className="space-y-4">
+          <StudentCodeLogin next={params.get("next") ?? undefined} />
+        </TabsContent>
+
+        <TabsContent value="email" className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4">
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="displayName">Full name</Label>
+                <Input
+                  id="displayName"
+                  name="displayName"
+                  autoComplete="name"
+                  placeholder="Ada Lovelace"
+                  required={!useDevMode}
+                  disabled={unavailable || pending}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@school.edu"
+                required
+                disabled={unavailable || pending}
+              />
+            </div>
+
+            {!useDevMode && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  {isSignUp && (
+                    <span className="text-xs text-muted-foreground">
+                      8+ characters
+                    </span>
+                  )}
+                </div>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
+                  required
+                  disabled={unavailable || pending}
+                />
+              </div>
+            )}
+
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="role">I am a</Label>
+                <Select
+                  name="role"
+                  value={role}
+                  onValueChange={(value) => setRole(value as Role)}
+                >
+                  <SelectTrigger id="role" disabled={unavailable || pending}>
+                    <SelectValue placeholder="Choose one" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="STUDENT">Student</SelectItem>
+                    <SelectItem value="TEACHER">Teacher</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Teachers can create classes. Students join with a class code.
+                </p>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                unavailable || pending || (isSignUp && role !== "TEACHER" && role !== "STUDENT")
+              }
+            >
+              {pending && <Loader2 className="animate-spin" />}
+              {pending
+                ? "Please wait…"
+                : isSignUp
+                  ? "Create account"
+                  : "Sign in"}
+            </Button>
+          </form>
+        </TabsContent>
+      </Tabs>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         {isSignUp ? "Already have an account?" : "New here?"}{" "}
@@ -367,9 +374,9 @@ function Alert({
   );
 }
 
-function GoogleMark() {
+function GoogleMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
+    <svg viewBox="0 0 24 24" className={cn("size-4", className)} aria-hidden>
       <path
         fill="#4285F4"
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"

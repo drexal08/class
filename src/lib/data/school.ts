@@ -5,6 +5,7 @@ import {
   requireCourseTeacher,
   requireUser,
 } from "@/lib/auth/guards";
+import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import {
   attendanceRate,
@@ -1016,4 +1017,63 @@ export function weekdayOfDateKey(dateKey: string): number {
 
 export function dateKeyOf(date: Date): string {
   return toDateKey(date);
+}
+
+/**
+ * Gets all cohorts and courses for a teacher in a school, grouped for the
+ * "Set work" form. Returns data suitable for the AssignmentGroup UI.
+ */
+export async function getTeacherSchoolTargets(schoolId: string) {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  // Verify teacher is a member of this school
+  const membership = await prisma.schoolMember.findFirst({
+    where: { schoolId, userId: user.id, status: "ACTIVE" },
+    select: { role: true },
+  });
+  if (!membership) return null;
+
+  // Get all active cohorts in the school
+  const cohorts = await prisma.cohort.findMany({
+    where: { schoolId, archivedAt: null },
+    orderBy: [{ combination: { stream: "asc" } }, { label: "asc" }],
+    select: {
+      id: true,
+      label: true,
+      grade: true,
+      combination: { select: { id: true, name: true, shortName: true, stream: true } },
+      academicYear: true,
+      courses: {
+        where: { archived: false },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          subject: true,
+          kind: true,
+          code: true,
+        },
+      },
+    },
+  });
+
+  // Get courses the teacher teaches directly (not via cohort)
+  const teacherCourses = await prisma.course.findMany({
+    where: {
+      teacherId: user.id,
+      archived: false,
+      OR: [{ schoolId }, { cohort: { schoolId } }],
+    },
+    select: {
+      id: true,
+      name: true,
+      subject: true,
+      kind: true,
+      code: true,
+      cohortId: true,
+    },
+  });
+
+  return { cohorts, teacherCourses, isAdmin: membership.role === "ADMIN" };
 }
