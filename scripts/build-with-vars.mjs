@@ -40,13 +40,19 @@ console.log("Written .env.production with", requiredVars.filter((k) => process.e
 // new WebAssembly.Module() is not available (Cloudflare Workers).
 // On Cloudflare Workers we use the workerd-specific client (runtime = "workerd")
 // which uses static WASM imports instead, so we skip the patch.
+// On Vercel/Node.js, Prisma 7's inlineWasm = true handles WASM inlining automatically.
 function patchPrismaWasm() {
   // Skip patch for Cloudflare Workers builds - we use the workerd client
   // which has static WASM imports and doesn't need this patch.
-  if (process.env.DEPLOYMENT_TARGET === "cloudflare") {
-    console.log("Skipping Prisma WASM patch for Cloudflare Workers (using workerd client)");
-    // Instead, patch the workerd client to use our workerd-compatible runtime shim
-    patchWorkerdClientRuntime();
+  // Also skip for Vercel/Node.js builds - inlineWasm = true handles it.
+  if (process.env.DEPLOYMENT_TARGET === "cloudflare" || process.env.VERCEL === "1" || !process.env.DEPLOYMENT_TARGET) {
+    if (process.env.DEPLOYMENT_TARGET === "cloudflare") {
+      console.log("Skipping Prisma WASM patch for Cloudflare Workers (using workerd client)");
+      // Instead, patch the workerd client to use our workerd-compatible runtime shim
+      patchWorkerdClientRuntime();
+    } else {
+      console.log("Skipping Prisma WASM patch for Vercel/Node.js (inlineWasm = true handles it)");
+    }
     return;
   }
 

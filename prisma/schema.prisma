@@ -11,11 +11,11 @@ datasource db {
   provider = "postgresql"
 }
 
-// For Node/Vercel (default) — binary engine, WASM query compiler
+// For Node/Vercel (default) — binary engine, no WASM query compiler
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
-  inlineWasm = true
+  engineType = "binary"
 }
 
 // For Cloudflare Workers (workerd) — static WASM import via workerd runtime
