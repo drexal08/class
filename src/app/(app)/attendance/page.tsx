@@ -182,7 +182,7 @@ export default async function StudentAttendancePage({
             <section className="mt-6">
               <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
                 <Clock className="h-5 w-5 text-muted-foreground" />
-                This Month's Records
+                This Month&apos;s Records
               </h2>
               <Card>
                 <CardContent className="p-0">

@@ -4,9 +4,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------------------------------
-   LMS Core design tokens — Modern Minimal (Blue Minimal)
-   Inspired by 21st.dev @serafimcloud/themes/modern-minimal and parahelp.com
-   Sharp radius (6px), Inter/JetBrains Mono/Source Serif 4, professional blue accent
+   LMS Core design tokens — Professional Neutral
+   Sharp radius (6px), Inter/JetBrains Mono/Source Serif 4
+   Neutral-first palette, blue only for primary actions & data viz
    --------------------------------------------------------------------------- */
 
 :root {
@@ -14,36 +14,36 @@
 
   /* Surfaces */
   --background: #ffffff;        /* white */
-  --foreground: #333333;        /* neutral-900 */
+  --foreground: #18181b;        /* neutral-950 */
   --card: #ffffff;
-  --card-foreground: #333333;
+  --card-foreground: #18181b;
   --popover: #ffffff;
-  --popover-foreground: #333333;
+  --popover-foreground: #18181b;
 
-  /* Primary - Professional Blue */
+  /* Primary - ONLY for primary actions */
   --primary: #3b82f6;           /* blue-500 */
   --primary-foreground: #ffffff;
 
-  /* Secondary */
-  --secondary: #f3f4f6;         /* gray-100 */
-  --secondary-foreground: #4b5563; /* gray-600 */
+  /* Neutral secondary */
+  --secondary: #f4f4f5;         /* zinc-100 */
+  --secondary-foreground: #3f3f46; /* zinc-700 */
 
   /* Muted */
-  --muted: #f9fafb;             /* gray-50 */
-  --muted-foreground: #6b7280;  /* gray-500 */
+  --muted: #f4f4f5;             /* zinc-100 */
+  --muted-foreground: #71717a;  /* zinc-500 */
 
-  /* Accent - Blue tint */
-  --accent: #e0f2fe;            /* blue-50 */
-  --accent-foreground: #1e3a8a; /* blue-900 */
+  /* Accent = Neutral (NOT blue) */
+  --accent: #f4f4f5;            /* zinc-100 */
+  --accent-foreground: #3f3f46; /* zinc-700 */
 
   /* Destructive */
   --destructive: #ef4444;       /* red-500 */
   --destructive-foreground: #ffffff;
 
   /* Lines & focus */
-  --border: #e5e7eb;            /* gray-200 */
-  --input: #e5e7eb;             /* gray-200 */
-  --ring: #3b82f6;              /* blue-500 */
+  --border: #e4e4e7;            /* zinc-200 */
+  --input: #e4e4e7;             /* zinc-200 */
+  --ring: #3b82f6;              /* blue-500 - ONLY for focus rings */
 
   /* Status colors - desaturated, professional */
   --success: #16a34a;           /* green-600 */
@@ -58,7 +58,7 @@
   /* Overlay */
   --overlay: rgb(17 24 39 / 0.45); /* neutral-900/45 */
 
-  /* Chart colors */
+  /* Chart colors - blue acceptable for data visualization */
   --chart-1: #3b82f6;
   --chart-2: #2563eb;
   --chart-3: #1d4ed8;
@@ -72,31 +72,32 @@
 }
 
 .dark {
-  --background: #171717;        /* neutral-950 */
-  --foreground: #e5e5e5;        /* neutral-200 */
-  --card: #262626;              /* neutral-800 */
-  --card-foreground: #e5e5e5;
-  --popover: #262626;
-  --popover-foreground: #e5e5e5;
+  --background: #09090b;        /* zinc-950 */
+  --foreground: #fafafa;        /* zinc-50 */
+  --card: #18181b;              /* zinc-900 */
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
 
   --primary: #3b82f6;           /* blue-500 */
   --primary-foreground: #ffffff;
 
-  --secondary: #262626;         /* neutral-800 */
-  --secondary-foreground: #e5e5e5;
+  --secondary: #27272a;         /* zinc-800 */
+  --secondary-foreground: #fafafa;
 
-  --muted: #1f1f1f;             /* neutral-900 */
-  --muted-foreground: #a3a3a3;  /* neutral-400 */
+  --muted: #27272a;             /* zinc-800 */
+  --muted-foreground: #a1a1aa;  /* zinc-400 */
 
-  --accent: #1e3a8a;            /* blue-900 */
-  --accent-foreground: #bfdbfe; /* blue-200 */
+  /* Accent = Neutral (NOT blue) */
+  --accent: #27272a;            /* zinc-800 */
+  --accent-foreground: #fafafa;
 
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
-  --border: #404040;            /* neutral-700 */
-  --input: #404040;
-  --ring: #3b82f6;
+  --border: #3f3f46;            /* zinc-700 */
+  --input: #3f3f46;             /* zinc-700 */
+  --ring: #3b82f6;              /* Keep blue for focus rings */
 
   --success: #22c55e;
   --success-muted: #052e16;
@@ -218,7 +219,7 @@
     background: var(--muted-foreground);
   }
 
-  /* Selection */
+  /* Selection - uses neutral accent */
   ::selection {
     background-color: var(--accent);
     color: var(--accent-foreground);
@@ -240,7 +241,7 @@
     }
   }
 
-  /* Landing page atmosphere - subtle dot grid and soft halo */
+  /* Landing page atmosphere - subtle dot grid and soft neutral halo */
   .hero-grid {
     background-image: radial-gradient(
       color-mix(in srgb, var(--foreground) 6%, transparent) 1px,
@@ -262,12 +263,12 @@
     background-image:
       radial-gradient(
         30rem 20rem at 15% -5rem,
-        color-mix(in srgb, var(--primary) 10%, transparent),
+        color-mix(in srgb, var(--foreground) 4%, transparent),
         transparent 65%
       ),
       radial-gradient(
         35rem 22rem at 85% 5rem,
-        color-mix(in srgb, var(--primary) 6%, transparent),
+        color-mix(in srgb, var(--foreground) 3%, transparent),
         transparent 70%
       );
   }

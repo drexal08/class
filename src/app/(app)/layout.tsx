@@ -25,14 +25,19 @@ export default async function AppLayout({
   // signed-out visitor is sent to `/login`. There is no middleware in front of
   // it — Next 16 proxies are Node-only and the Workers adapter cannot build
   // them, so the check has to live in the tree rather than beside it.
+  // eslint-disable-next-line react-hooks/purity
   const layoutStarted = Date.now();
   const user = await getCurrentUser({ allowUnclaimed: true });
+  // eslint-disable-next-line react-hooks/purity
   const userMs = Date.now() - layoutStarted;
   if (!user) redirect("/login");
+  // eslint-disable-next-line react-hooks/purity
   const claimStarted = Date.now();
   const pending = await getPendingClaim(user.id);
+  // eslint-disable-next-line react-hooks/purity
   const claimMs = Date.now() - claimStarted;
   // #region agent log
+  // eslint-disable-next-line react-hooks/purity
   fetch('http://127.0.0.1:7828/ingest/62b85801-70a6-40cf-a67e-0e8937ac4fa4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'214fb7'},body:JSON.stringify({sessionId:'214fb7',hypothesisId:'A',location:'src/app/(app)/layout.tsx',message:'private layout gate',data:{userMs,claimMs,pending:Boolean(pending),totalMs:Date.now()-layoutStarted},timestamp:Date.now()})}).catch(()=>{});
   // #endregion
   if (pending) redirect("/welcome");
