@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/shell/app-header";
 import { Sidebar } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar-context";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPendingClaim } from "@/lib/auth/claim";
 
@@ -37,7 +38,8 @@ export default async function AppLayout({
   if (pending) redirect("/welcome");
 
   return (
-      <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
+      <SidebarProvider>
         <AppHeader user={user} />
         <div className="flex-1 flex">
           <Sidebar user={user} isAdmin={user.isAdmin} role={user.role} />
@@ -45,6 +47,7 @@ export default async function AppLayout({
             {children}
           </main>
         </div>
-      </div>
-    );
+      </SidebarProvider>
+    </div>
+  );
 }

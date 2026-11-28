@@ -10,6 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Mail, Lock, AlertCircle } from "lucide-react";
 import { signInAction, googleAction, devSignInAction, type AuthOutcome } from "@/components/auth/auth-client";
 import { EMPTY_ACTION_STATE, type ActionState } from "@/lib/types";
@@ -28,6 +35,7 @@ export function LoginForm({ next = "/dashboard" }: LoginFormProps) {
   const [formState, setFormState] = React.useState<AuthOutcome>({ status: "error", error: "" });
   const [isDevMode, setIsDevMode] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<"code" | "email" | "google">("code");
+  const [devRole, setDevRole] = React.useState<"TEACHER" | "STUDENT" | "">("");
 
   const handleCodeSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -96,6 +104,7 @@ export function LoginForm({ next = "/dashboard" }: LoginFormProps) {
   const handleDevSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    formData.set("role", devRole);
     const result = await devSignInAction(formData);
     setFormState(result);
     if (result.status === "signed-in") {
@@ -299,16 +308,15 @@ export function LoginForm({ next = "/dashboard" }: LoginFormProps) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="dev-role">Role</Label>
-            <select
-              id="dev-role"
-              name="role"
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-foreground file:border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              required
-            >
-              <option value="">Choose role</option>
-              <option value="TEACHER">Teacher</option>
-              <option value="STUDENT">Student</option>
-            </select>
+            <Select value={devRole} onValueChange={(v) => setDevRole(v as "TEACHER" | "STUDENT" | "")}>
+              <SelectTrigger id="dev-role">
+                <SelectValue placeholder="Choose role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TEACHER">Teacher</SelectItem>
+                <SelectItem value="STUDENT">Student</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button type="submit" className="w-full" variant="secondary">
             Sign in (Dev Mode)

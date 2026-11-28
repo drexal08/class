@@ -1,10 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 
 import { LogoLockup } from "@/components/brand/logo";
 import { NotificationsMenu } from "@/components/shell/notifications-menu";
-import { UserMenu } from "@/components/shell/user-menu";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { listNotifications } from "@/lib/data/notifications";
@@ -33,7 +32,6 @@ export function AppHeader({ user }: { user: SessionUser }) {
           <Suspense fallback={<NotificationBellFallback />}>
             <NotificationBell userId={user.id} />
           </Suspense>
-          <UserMenu user={user} />
         </div>
       </div>
     </header>

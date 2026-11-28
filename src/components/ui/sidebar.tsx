@@ -41,6 +41,7 @@ import { signOutClient } from "@/lib/firebase/client";
 import type { SessionUser } from "@/lib/types";
 import { ROLE_LABELS } from "@/lib/types";
 import { displayNameOf } from "@/lib/utils";
+import { useSidebar } from "@/components/ui/sidebar-context";
 
 const LINKS = [
   { href: "/dashboard", label: "Classes", icon: LayoutGrid },
@@ -77,8 +78,7 @@ interface SidebarProps {
 
 export function Sidebar({ user, isAdmin, role }: SidebarProps) {
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = React.useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const { sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed } = useSidebar();
   const [megaMenuOpen, setMegaMenuOpen] = React.useState(false);
   const megaMenuRef = React.useRef<HTMLDivElement>(null);
   const triggerRef = React.useRef<HTMLButtonElement>(null);
@@ -99,9 +99,9 @@ export function Sidebar({ user, isAdmin, role }: SidebarProps) {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [sidebarOpen]);
+  }, [sidebarOpen, setSidebarOpen]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts - global
   React.useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key === "k") {
@@ -118,7 +118,7 @@ export function Sidebar({ user, isAdmin, role }: SidebarProps) {
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [sidebarOpen]);
+  }, [sidebarOpen, setSidebarOpen]);
 
   async function signOut() {
     await signOutClient().catch(() => undefined);
@@ -128,18 +128,6 @@ export function Sidebar({ user, isAdmin, role }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile sidebar toggle */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="lg:hidden"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label={sidebarOpen ? "Close navigation" : "Open navigation"}
-        aria-expanded={sidebarOpen}
-      >
-        {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </Button>
-
       {/* Desktop sidebar */}
       <aside
         className={cn(
