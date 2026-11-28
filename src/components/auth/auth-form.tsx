@@ -374,7 +374,7 @@ function Alert({
   );
 }
 
-function GoogleMark({ className }: { className?: string }) {
+export function GoogleMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={cn("size-4", className)} aria-hidden>
       <path

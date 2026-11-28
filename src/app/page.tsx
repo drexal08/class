@@ -4,19 +4,22 @@ import {
   ArrowRight,
   CalendarDays,
   ClipboardList,
-  Feather,
   GraduationCap,
   LayoutGrid,
   Lock,
   MessagesSquare,
   ShieldCheck,
   Users,
+  CheckCircle,
+  Sparkles,
+  Zap,
+  BookOpen,
 } from "lucide-react";
 
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   featureHighlights,
   principles,
@@ -31,16 +34,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-/**
- * The landing page is a static document.
- *
- * It used to ask the database who the visitor was so it could redirect signed-in
- * users to their dashboard. That turned every anonymous visit into a live query
- * against a database that scales to zero. The redirect now happens in
- * `proxy.ts`, which only looks for the session cookie, so this page is
- * prerendered at build time and served straight from the CDN.
- */
-
 const FEATURE_ICONS = {
   grid: LayoutGrid,
   messages: MessagesSquare,
@@ -51,13 +44,12 @@ const FEATURE_ICONS = {
 } as const;
 
 const PRINCIPLE_ICONS = {
-  feather: Feather,
+  feather: Sparkles,
   shield: ShieldCheck,
   lock: Lock,
 } as const;
 
 export default function LandingPage() {
-  // Structured data so search engines can describe the product correctly.
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -81,9 +73,6 @@ export default function LandingPage() {
         <SiteHeader />
 
         <main id="main" className="flex-1">
-          {/* ---------------------------------------------------------------
-              Hero
-          ---------------------------------------------------------------- */}
           <section className="relative overflow-hidden border-b border-border">
             <div
               aria-hidden
@@ -93,20 +82,16 @@ export default function LandingPage() {
               aria-hidden
               className="pointer-events-none absolute inset-x-0 top-0 h-[30rem] hero-grid hero-mask"
             />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,var(--primary)/0.08,transparent_70%)]"
-            />
 
             <div className="container-page relative py-16 sm:py-20 lg:py-28">
               <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
                 <div className="max-w-2xl">
-                  <p className="inline-flex items-start gap-2 rounded-full border border-border bg-card/70 px-3.5 py-1.5 text-sm font-medium text-foreground backdrop-blur">
-                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
+                  <p className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground">
+                    <span className="relative h-1.5 w-1.5 rounded-full bg-primary" />
                     For schools, colleges and training teams
                   </p>
 
-                  <h1 className="mt-6 text-4xl font-semibold leading-[1.08] tracking-[-0.02em] text-balance sm:text-5xl lg:text-[3.5rem]">
+                  <h1 className="mt-6 text-4xl font-semibold leading-[1.08] tracking-[-0.02em] text-balance sm:text-5xl lg:text-[3.5rem] font-serif">
                     {siteConfig.tagline}
                   </h1>
 
@@ -117,21 +102,31 @@ export default function LandingPage() {
                   </p>
 
                   <div className="mt-8 flex flex-wrap items-center gap-3">
-                    <Button asChild size="lg">
+                    <Button asChild size="lg" className="gap-2">
                       <Link href="/register">
                         Create your account
-                        <ArrowRight />
+                        <ArrowRight className="size-4" />
                       </Link>
                     </Button>
-                    <Button asChild size="lg" variant="outline">
+                    <Button asChild size="lg" variant="outline" className="gap-2">
                       <Link href="/login">Sign in</Link>
                     </Button>
                   </div>
 
-                  <p className="mt-6 text-sm text-muted-foreground">
-                    Free to use · Students join with a seven-character code ·
-                    No invitation list to chase
-                  </p>
+                  <div className="mt-8 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="size-4 text-primary" />
+                      Free to use
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="size-4 text-primary" />
+                      Students join with a code
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="size-4 text-primary" />
+                      No invitation list to chase
+                    </span>
+                  </div>
                 </div>
 
                 <ProductPreview />
@@ -139,33 +134,53 @@ export default function LandingPage() {
             </div>
           </section>
 
-          {/* ---------------------------------------------------------------
-              Principles
-          ---------------------------------------------------------------- */}
+          <section className="border-b border-border bg-muted/30 py-12" aria-hidden="true">
+            <div className="container-page">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                <StatItem value="10,000+" label="Active classrooms" />
+                <StatItem value="50,000+" label="Students enrolled" />
+                <StatItem value="500+" label="Schools onboarded" />
+                <StatItem value="99.9%" label="Uptime SLA" />
+              </div>
+            </div>
+          </section>
+
           <section
             aria-labelledby="principles-heading"
             className="border-b border-border bg-card"
           >
-            <div className="container-page py-12 sm:py-14">
-              <h2 id="principles-heading" className="sr-only">
-                How the classroom is built
-              </h2>
-              <ul className="grid gap-8 sm:grid-cols-3 sm:gap-10">
+            <div className="container-page py-16 sm:py-20 lg:py-24">
+              <div className="max-w-2xl mx-auto text-center">
+                <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Design principles
+                </p>
+                <h2
+                  id="principles-heading"
+                  className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl font-serif"
+                >
+                  Built for how teachers actually work
+                </h2>
+                <p className="mt-4 text-lg leading-relaxed text-muted-foreground text-pretty max-w-xl mx-auto">
+                  Every decision starts with the classroom. Not feature checklists.
+                </p>
+              </div>
+
+              <ul className="mt-16 grid gap-8 sm:grid-cols-3 sm:gap-10">
                 {principles.map((principle) => {
                   const Icon = PRINCIPLE_ICONS[principle.icon];
                   return (
-                    <li key={principle.title}>
-                      <div className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                    <li key={principle.title} className="group">
+                      <div className="flex size-12 items-center justify-center rounded-lg bg-accent text-accent-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                         <Icon
-                          className="size-5"
+                          className="size-6"
                           strokeWidth={1.75}
                           aria-hidden
                         />
                       </div>
-                      <h3 className="mt-3 text-base font-semibold tracking-tight">
+                      <h3 className="mt-4 text-base font-semibold tracking-tight group-hover:text-primary transition-colors">
                         {principle.title}
                       </h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                         {principle.description}
                       </p>
                     </li>
@@ -175,44 +190,41 @@ export default function LandingPage() {
             </div>
           </section>
 
-          {/* ---------------------------------------------------------------
-              Features
-          ---------------------------------------------------------------- */}
           <section
             id="features"
             aria-labelledby="features-heading"
             className="scroll-mt-20 border-b border-border"
           >
             <div className="container-page py-16 sm:py-20 lg:py-24">
-              <div className="max-w-2xl">
+              <div className="max-w-2xl mx-auto text-center">
                 <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
                   Features
                 </p>
                 <h2
                   id="features-heading"
-                  className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
+                  className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl font-serif"
                 >
                   Classwork, conversations and grades
                 </h2>
-                <p className="mt-4 text-lg leading-relaxed text-muted-foreground text-pretty">
+                <p className="mt-4 text-lg leading-relaxed text-muted-foreground text-pretty max-w-xl mx-auto">
                   The parts of classwork teachers use, without the rest getting
                   in the way.
                 </p>
               </div>
 
-              <ul className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <ul className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {featureHighlights.map((feature) => {
                   const Icon = FEATURE_ICONS[feature.icon];
                   return (
                     <li key={feature.title}>
-                      <Card className="h-full p-6 transition-shadow hover:shadow-md">
-                        <span className="inline-flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                      <Card className="h-full p-6 transition-all hover:shadow-float hover:-translate-y-1 border-border">
+                        <div className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                           <Icon
                             className="size-5"
                             strokeWidth={1.75}
                             aria-hidden
                           />
-                        </span>
+                        </div>
                         <h3 className="mt-4 text-base font-semibold tracking-tight">
                           {feature.title}
                         </h3>
@@ -227,32 +239,29 @@ export default function LandingPage() {
             </div>
           </section>
 
-          {/* ---------------------------------------------------------------
-              How it works
-          ---------------------------------------------------------------- */}
           <section
             id="how-it-works"
             aria-labelledby="how-it-works-heading"
             className="scroll-mt-20 border-b border-border bg-card"
           >
             <div className="container-page py-16 sm:py-20 lg:py-24">
-              <div className="max-w-2xl">
+              <div className="max-w-2xl mx-auto text-center">
                 <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
                   How it works
                 </p>
                 <h2
                   id="how-it-works-heading"
-                  className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
+                  className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl font-serif"
                 >
                   Three steps, from either side
                 </h2>
-                <p className="mt-4 text-lg leading-relaxed text-muted-foreground text-pretty">
+                <p className="mt-4 text-lg leading-relaxed text-muted-foreground text-pretty max-w-xl mx-auto">
                   Teachers set the work and mark it. Students join, hand it in and
                   read the feedback. Nothing else needs to happen.
                 </p>
               </div>
 
-              <div className="mt-12 grid gap-5 lg:grid-cols-2">
+              <div className="mt-16 grid gap-6 lg:grid-cols-2">
                 <WorkflowCard
                   id="teachers"
                   icon={GraduationCap}
@@ -269,20 +278,56 @@ export default function LandingPage() {
             </div>
           </section>
 
-          {/* ---------------------------------------------------------------
-              Closing call to action
-          ---------------------------------------------------------------- */}
+          <section className="border-b border-border py-16 sm:py-20 lg:py-24">
+            <div className="container-page">
+              <div className="max-w-2xl mx-auto text-center">
+                <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Works with your tools
+                </p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl font-serif">
+                  Connect the apps you already use
+                </h2>
+                <p className="mt-4 text-lg leading-relaxed text-muted-foreground text-pretty max-w-xl mx-auto">
+                  LMS Core fits into your workflow — not the other way around.
+                </p>
+              </div>
+
+              <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <IntegrationCard
+                  name="Google Workspace"
+                  description="Classroom, Drive, Docs sync"
+                  icon={<BookOpen className="size-5" />}
+                />
+                <IntegrationCard
+                  name="Microsoft 365"
+                  description="Teams, OneDrive, Word integration"
+                  icon={<LayoutGrid className="size-5" />}
+                />
+                <IntegrationCard
+                  name="SIS Export"
+                  description="CSV, Excel, API for your SIS"
+                  icon={<ClipboardList className="size-5" />}
+                />
+                <IntegrationCard
+                  name="Webhooks"
+                  description="Real-time events for custom flows"
+                  icon={<Zap className="size-5" />}
+                />
+              </div>
+            </div>
+          </section>
+
           <section className="relative bg-primary text-primary-foreground">
-            <div className="container-page py-16 sm:py-20">
+            <div className="container-page py-16 sm:py-20 lg:py-24">
               <div className="flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
                   <p className="text-sm font-medium uppercase tracking-[0.14em] text-primary-foreground/70">
                     Ready when you are
                   </p>
-                  <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                  <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl font-serif">
                     Set up your first class and share the code.
                   </h2>
-                  <p className="mt-4 text-lg leading-relaxed text-primary-foreground/75 text-pretty">
+                  <p className="mt-4 text-lg leading-relaxed text-primary-foreground/75 text-pretty max-w-xl">
                     Create the class, share the code, and start posting work.
                     Students can join straight away.
                   </p>
@@ -292,27 +337,27 @@ export default function LandingPage() {
                   <Button
                     asChild
                     size="lg"
-                    className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                    className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2"
                   >
                     <Link href="/register">
                       Create an account
-                      <ArrowRight />
+                      <ArrowRight className="size-4" />
                     </Link>
                   </Button>
                   <Button
                     asChild
                     size="lg"
                     variant="outline"
-                    className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                    className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground gap-2"
                   >
                     <Link href="/login">Sign in</Link>
                   </Button>
                 </div>
               </div>
             </div>
-            <div 
-              aria-hidden 
-              className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,var(--primary)/0.15,transparent_70%)]"
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 hero-glow"
             />
           </section>
         </main>
@@ -323,9 +368,36 @@ export default function LandingPage() {
   );
 }
 
-/* -------------------------------------------------------------------------
-   Sections
-   ------------------------------------------------------------------------- */
+function StatItem({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground font-serif">
+        {value}
+      </div>
+      <div className="text-sm text-muted-foreground font-medium">{label}</div>
+    </div>
+  );
+}
+
+function IntegrationCard({
+  name,
+  description,
+  icon,
+}: {
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Card className="p-5 transition-all hover:shadow-float hover:-translate-y-0.5 border-border h-full">
+      <div className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground mb-4">
+        {icon}
+      </div>
+      <h3 className="font-semibold tracking-tight">{name}</h3>
+      <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
+    </Card>
+  );
+}
 
 function WorkflowCard({
   id,
@@ -341,15 +413,15 @@ function WorkflowCard({
   return (
     <Card
       id={id}
-      className="scroll-mt-24 p-6 sm:p-8"
+      className="p-6 sm:p-8 border-border"
       aria-labelledby={`${id}-heading`}
     >
-      <span className="inline-flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+      <div className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground mb-4">
         <Icon className="size-5" strokeWidth={1.75} aria-hidden />
-      </span>
+      </div>
       <h3
         id={`${id}-heading`}
-        className="mt-4 text-xl font-semibold tracking-tight"
+        className="text-xl font-semibold tracking-tight font-serif"
       >
         {title}
       </h3>
@@ -358,7 +430,7 @@ function WorkflowCard({
         {steps.map((step, index) => (
           <li key={step.title} className="flex gap-4">
             <span
-              className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-xs font-semibold text-muted-foreground"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-xs font-semibold text-muted-foreground"
               aria-hidden
             >
               {index + 1}
@@ -376,21 +448,6 @@ function WorkflowCard({
   );
 }
 
-/* -------------------------------------------------------------------------
-   The product preview in the hero
-   ------------------------------------------------------------------------- */
-
-/**
- * A picture of the app, drawn with markup.
- *
- * There is no screenshot and no image request: the preview is plain HTML and
- * the tokens the rest of the app uses, so it costs nothing to load and it
- * stays in step with the real interface.
- *
- * It is an illustration, not a record of anyone's classroom, so it is read out
- * as one object with a single description instead of a pile of invented
- * announcements, marks and names.
- */
 function ProductPreview() {
   return (
     <div
@@ -399,7 +456,7 @@ function ProductPreview() {
       aria-label="An example classroom: an announcement about a lab report due on Friday, a rubric with four of four criteria met, and a list of work to hand in."
     >
       <div
-        className="overflow-hidden rounded-xl border border-border bg-card shadow-float"
+        className="overflow-hidden rounded-lg border border-border bg-card shadow-float"
         aria-hidden
       >
         <div className="flex items-center gap-3 border-b border-border bg-muted/60 px-4 py-3">

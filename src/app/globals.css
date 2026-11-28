@@ -4,96 +4,116 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------------------------------
-   LMS Core design tokens — Blue accent edition
-
-   An educational platform with a calm blue brand identity. Slate surfaces
-   with blue primary/ring for trust and focus. Status colors remain semantic.
+   LMS Core design tokens — Modern Minimal (Blue Minimal)
+   Inspired by 21st.dev @serafimcloud/themes/modern-minimal and parahelp.com
+   Sharp radius (6px), Inter/JetBrains Mono/Source Serif 4, professional blue accent
    --------------------------------------------------------------------------- */
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.375rem; /* 6px - sharper, more professional */
 
   /* Surfaces */
-  --background: #f8fafc; /* slate-50  — app canvas */
-  --foreground: #1e293b; /* slate-800 — primary text */
+  --background: #ffffff;        /* white */
+  --foreground: #333333;        /* neutral-900 */
   --card: #ffffff;
-  --card-foreground: #1e293b;
+  --card-foreground: #333333;
   --popover: #ffffff;
-  --popover-foreground: #1e293b;
+  --popover-foreground: #333333;
 
-  /* Action — Trust blue */
-  --primary: #1e40af; /* blue-800 */
-  --primary-foreground: #f8fafc;
+  /* Primary - Professional Blue */
+  --primary: #3b82f6;           /* blue-500 */
+  --primary-foreground: #ffffff;
 
-  --secondary: #eff6ff; /* blue-50 */
-  --secondary-foreground: #1e40af; /* blue-800 */
+  /* Secondary */
+  --secondary: #f3f4f6;         /* gray-100 */
+  --secondary-foreground: #4b5563; /* gray-600 */
 
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b; /* slate-500 — muted labels */
+  /* Muted */
+  --muted: #f9fafb;             /* gray-50 */
+  --muted-foreground: #6b7280;  /* gray-500 */
 
-  --accent: #dbeafe; /* blue-100 */
+  /* Accent - Blue tint */
+  --accent: #e0f2fe;            /* blue-50 */
   --accent-foreground: #1e3a8a; /* blue-900 */
 
-  --destructive: #b91c1c;
-  --destructive-foreground: #fef2f2;
+  /* Destructive */
+  --destructive: #ef4444;       /* red-500 */
+  --destructive-foreground: #ffffff;
 
   /* Lines & focus */
-  --border: #e2e8f0; /* slate-200 — soft borders */
-  --input: #93c5fd; /* blue-300 — input outline */
-  --ring: #3b82f6; /* blue-500 — focus ring */
+  --border: #e5e7eb;            /* gray-200 */
+  --input: #e5e7eb;             /* gray-200 */
+  --ring: #3b82f6;              /* blue-500 */
 
-  /* Status: desaturated, readable, never neon */
-  --success: #15803d;
-  --success-muted: #f0fdf4;
-  --warning: #b45309;
-  --warning-muted: #fffbeb;
-  --danger: #b91c1c;
-  --danger-muted: #fef2f2;
-  --info: #0f766e;
-  --info-muted: #f0fdfa;
+  /* Status colors - desaturated, professional */
+  --success: #16a34a;           /* green-600 */
+  --success-muted: #f0fdf4;     /* green-50 */
+  --warning: #ca8a04;           /* yellow-600 */
+  --warning-muted: #fefce8;     /* yellow-50 */
+  --danger: #ef4444;            /* red-500 */
+  --danger-muted: #fef2f2;      /* red-50 */
+  --info: #0d9488;              /* teal-600 */
+  --info-muted: #f0fdfa;        /* teal-50 */
 
-  /* The scrim behind a modal. Kept as its own token so the dialog does not
-     reach for a raw slate utility and so dark mode can deepen it. */
-  --overlay: rgb(15 23 42 / 0.45);
+  /* Overlay */
+  --overlay: rgb(17 24 39 / 0.45); /* neutral-900/45 */
+
+  /* Chart colors */
+  --chart-1: #3b82f6;
+  --chart-2: #2563eb;
+  --chart-3: #1d4ed8;
+  --chart-4: #1e40af;
+  --chart-5: #1e3a8a;
+
+  /* Fonts */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
 }
 
 .dark {
-  --background: #0f172a;
-  --foreground: #e2e8f0;
-  --card: #1e293b;
-  --card-foreground: #e2e8f0;
-  --popover: #1e293b;
-  --popover-foreground: #e2e8f0;
+  --background: #171717;        /* neutral-950 */
+  --foreground: #e5e5e5;        /* neutral-200 */
+  --card: #262626;              /* neutral-800 */
+  --card-foreground: #e5e5e5;
+  --popover: #262626;
+  --popover-foreground: #e5e5e5;
 
-  --primary: #60a5fa; /* blue-400 */
-  --primary-foreground: #0f172a;
+  --primary: #3b82f6;           /* blue-500 */
+  --primary-foreground: #ffffff;
 
-  --secondary: #1e3a8a; /* blue-900 */
-  --secondary-foreground: #dbeafe; /* blue-100 */
+  --secondary: #262626;         /* neutral-800 */
+  --secondary-foreground: #e5e5e5;
 
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
+  --muted: #1f1f1f;             /* neutral-900 */
+  --muted-foreground: #a3a3a3;  /* neutral-400 */
 
-  --accent: #1e40af; /* blue-800 */
-  --accent-foreground: #dbeafe; /* blue-100 */
+  --accent: #1e3a8a;            /* blue-900 */
+  --accent-foreground: #bfdbfe; /* blue-200 */
 
-  --destructive: #f87171;
-  --destructive-foreground: #450a0a;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 
-  --border: #334155;
-  --input: #3b82f6; /* blue-500 */
-  --ring: #60a5fa; /* blue-400 */
+  --border: #404040;            /* neutral-700 */
+  --input: #404040;
+  --ring: #3b82f6;
 
-  --success: #4ade80;
+  --success: #22c55e;
   --success-muted: #052e16;
-  --warning: #fbbf24;
-  --warning-muted: #451a03;
-  --danger: #f87171;
+  --warning: #eab308;
+  --warning-muted: #422006;
+  --danger: #ef4444;
   --danger-muted: #450a0a;
-  --info: #5eead4;
+  --info: #14b8a6;
   --info-muted: #042f2e;
 
   --overlay: rgb(2 6 23 / 0.62);
+
+  --chart-1: #60a5fa;
+  --chart-2: #3b82f6;
+  --chart-3: #2563eb;
+  --chart-4: #1d4ed8;
+  --chart-5: #1e40af;
 }
 
 @theme inline {
@@ -127,16 +147,22 @@
   --color-info-muted: var(--info-muted);
   --color-overlay: var(--overlay);
 
-  /* Elevation: two levels, both nearly invisible. Declared here so Tailwind
-     can generate the `shadow-card` and `shadow-float` utilities. */
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04);
-  --shadow-float: 0 4px 16px -4px rgb(15 23 42 / 0.12);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+  /* Elevation */
+  --shadow-card: 0 1px 2px 0 rgb(17 24 39 / 0.04);
+  --shadow-float: 0 4px 16px -4px rgb(17 24 39 / 0.12);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius) - 1px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
@@ -154,19 +180,16 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
-    /* The typeface comes from the `font-sans` utility in the root layout:
-       the font variable has to sit on an element that also carries the
-       utility, or the family name resolves to nothing. */
+    font-family: var(--font-sans);
   }
 
-  /* One visible focus style, applied consistently — a hard accessibility
-     requirement for a platform students navigate by keyboard. */
+  /* Focus style */
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
 
-  /* Micro-interactions only: respect users who ask for less motion. */
+  /* Reduced motion */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -178,9 +201,10 @@
     }
   }
 
+  /* Scrollbar */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
@@ -188,15 +212,21 @@
   ::-webkit-scrollbar-thumb {
     background: var(--input);
     border: 2px solid var(--background);
-    border-radius: 6px;
+    border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--muted-foreground);
   }
+
+  /* Selection */
+  ::selection {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+  }
 }
 
 @layer utilities {
-  /* Content column widths used across the app shell. */
+  /* Content column widths */
   .container-page {
     width: 100%;
     margin-inline: auto;
@@ -210,39 +240,34 @@
     }
   }
 
-  /* The landing page's atmosphere: a faint dot grid and a soft slate halo.
-     Both are derived from the design tokens, so they follow the theme and
-     never introduce a colour of their own. */
+  /* Landing page atmosphere - subtle dot grid and soft halo */
   .hero-grid {
     background-image: radial-gradient(
-      color-mix(in srgb, var(--foreground) 9%, transparent) 1px,
+      color-mix(in srgb, var(--foreground) 6%, transparent) 1px,
       transparent 1px
     );
-    background-size: 22px 22px;
+    background-size: 24px 24px;
   }
 
-  /* Fades the grid out towards the bottom and the edges. */
   .hero-mask {
     -webkit-mask-image: radial-gradient(
-      78% 68% at 50% 0%,
-      #000 12%,
+      70% 60% at 50% 0%,
+      #000 10%,
       transparent 100%
     );
-    mask-image: radial-gradient(78% 68% at 50% 0%, #000 12%, transparent 100%);
+    mask-image: radial-gradient(70% 60% at 50% 0%, #000 10%, transparent 100%);
   }
 
-  /* Two soft halos: one behind the headline, one behind the product preview.
-     Both use the primary token, so they stay in the slate family. */
   .hero-glow {
     background-image:
       radial-gradient(
-        34rem 22rem at 20% -8rem,
-        color-mix(in srgb, var(--primary) 13%, transparent),
-        transparent 68%
+        30rem 20rem at 15% -5rem,
+        color-mix(in srgb, var(--primary) 10%, transparent),
+        transparent 65%
       ),
       radial-gradient(
-        40rem 26rem at 80% 6rem,
-        color-mix(in srgb, var(--primary) 9%, transparent),
+        35rem 22rem at 85% 5rem,
+        color-mix(in srgb, var(--primary) 6%, transparent),
         transparent 70%
       );
   }
@@ -260,15 +285,7 @@
     }
   }
 
-  /* -------------------------------------------------------------------------
-     Long-form text
-
-     The policy pages are the only prose in the product, so the type rules
-     live here instead of arriving as a plugin and a second set of tokens:
-     body copy at the muted colour the rest of the app uses for secondary
-     text, headings and emphasis at the foreground colour, and links that
-     read as links without introducing a colour of their own.
-     ---------------------------------------------------------------------- */
+  /* Long-form text */
   .policy-prose {
     color: var(--muted-foreground);
     font-size: 0.9375rem;
@@ -305,9 +322,8 @@
     text-decoration-color: var(--foreground);
   }
 
-  /* Cookie names, read out of a policy paragraph. */
   .policy-prose code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--font-mono);
     font-size: 0.875em;
     color: var(--foreground);
   }

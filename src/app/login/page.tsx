@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { AuthForm } from "@/components/auth/auth-form";
+import { LoginForm } from "@/components/auth/login-form";
 import { LogoLockup } from "@/components/brand/logo";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isDevAuthEnabledClient, isFirebaseClientConfigured } from "@/lib/env";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -18,11 +17,7 @@ export default function LoginPage() {
   return (
     <AuthLayout>
       <Suspense fallback={<FormSkeleton />}>
-        <AuthForm
-          mode="signin"
-          firebaseEnabled={isFirebaseClientConfigured()}
-          devEnabled={isDevAuthEnabledClient()}
-        />
+        <LoginForm next="/dashboard" />
       </Suspense>
     </AuthLayout>
   );
