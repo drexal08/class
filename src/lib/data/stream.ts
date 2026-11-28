@@ -54,9 +54,10 @@ export async function listAnnouncements(
     }>;
   }>
 > {
+  const started = Date.now();
   await requireCourseAccess(courseId);
 
-  return prisma.announcement.findMany({
+  const rows = await prisma.announcement.findMany({
     where: { courseId },
     orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
     take: 50,
@@ -81,6 +82,10 @@ export async function listAnnouncements(
       },
     },
   });
+  // #region agent log
+  fetch('http://127.0.0.1:7828/ingest/62b85801-70a6-40cf-a67e-0e8937ac4fa4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'214fb7'},body:JSON.stringify({sessionId:'214fb7',hypothesisId:'D',location:'src/lib/data/stream.ts:listAnnouncements',message:'announcement query',data:{ms:Date.now()-started,rowCount:rows.length,commentCount:rows.reduce((n,row)=>n+row.comments.length,0),attachmentCount:rows.reduce((n,row)=>n+row.attachments.length,0)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  return rows;
 }
 
 /** Class comments on a piece of classwork. Never includes private feedback. */

@@ -654,7 +654,11 @@ export async function getUserSchedule(): Promise<{
 }
 
 export async function getTodaySchedule(now = new Date()) {
+  const started = Date.now();
   const { slots } = await getUserSchedule();
+  // #region agent log
+  fetch('http://127.0.0.1:7828/ingest/62b85801-70a6-40cf-a67e-0e8937ac4fa4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'214fb7'},body:JSON.stringify({sessionId:'214fb7',hypothesisId:'E',location:'src/lib/data/school.ts:getTodaySchedule',message:'today schedule query',data:{ms:Date.now()-started,slotCount:slots.length},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   // The timezone conversion happens in the pure module so the dashboard and
   // the calendar agree about which day it is.
   return slotsForToday(slots, now, schoolTimeZone());
@@ -924,6 +928,7 @@ export async function getStudentReportCard(termId: string) {
 
 /** The small dashboard card: this term's average and attendance. */
 export async function getStudentTermOverview(termId?: string) {
+  const started = Date.now();
   const user = await requireUser();
 
   const terms = await listTerms();
@@ -990,13 +995,17 @@ export async function getStudentTermOverview(termId?: string) {
     averages.push(result.average);
   }
 
-  return {
+  const result = {
     term,
     average: meanOfAverages(averages),
     attendanceRate: attendanceRate(
       records.map((record: { status: string }) => record.status as AttendanceStatusValue),
     ),
   };
+  // #region agent log
+  fetch('http://127.0.0.1:7828/ingest/62b85801-70a6-40cf-a67e-0e8937ac4fa4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'214fb7'},body:JSON.stringify({sessionId:'214fb7',hypothesisId:'C',location:'src/lib/data/school.ts:getStudentTermOverview',message:'term overview query',data:{ms:Date.now()-started,courseCount:courseIds.length,categoryCount:categories.length,itemCount:items.length,recordCount:records.length},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  return result;
 }
 
 // ---------------------------------------------------------------------------

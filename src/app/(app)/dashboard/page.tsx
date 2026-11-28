@@ -29,14 +29,24 @@ export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const pageStarted = Date.now();
+  const userStarted = Date.now();
   const user = await getCurrentUser();
+  const userMs = Date.now() - userStarted;
+  const coursesStarted = Date.now();
   const courses = await listUserCourses();
+  const coursesMs = Date.now() - coursesStarted;
 
+  const parallelStarted = Date.now();
   const [today, overview, recentActivity] = await Promise.all([
     getTodaySchedule(),
     user?.role === "STUDENT" ? getStudentTermOverview() : Promise.resolve(null),
     user && courses.length > 0 ? listAnnouncements(courses[0].id) : Promise.resolve([]),
   ]);
+  const parallelMs = Date.now() - parallelStarted;
+  // #region agent log
+  fetch('http://127.0.0.1:7828/ingest/62b85801-70a6-40cf-a67e-0e8937ac4fa4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'214fb7'},body:JSON.stringify({sessionId:'214fb7',hypothesisId:'B',location:'src/app/(app)/dashboard/page.tsx',message:'dashboard data waterfall',data:{role:user?.role??null,userMs,coursesMs,parallelMs,courseCount:courses.length,todayCount:today.length,activityCount:recentActivity.length,hasOverview:Boolean(overview),totalMs:Date.now()-pageStarted},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   const minutesNow = minutesSinceMidnight(new Date(), schoolTimeZone());
 
   // Creating classes is a teacher thing. Administrators keep their own role
